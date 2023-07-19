@@ -1,147 +1,141 @@
-import os
-import random
 
 from discord.ext import commands
 import discord
-import requests
-import nacl
-import yt_dlp as youtube_dl
+from utils.keep_alive import keep_alive
+import os
+import asyncio
 
-from keep_alive import keep_alive
 
-youtube_dl.utils.bug_reports_message = lambda: ''
+bot = commands.Bot(command_prefix=".", intents=discord.Intents().all())
+bot.remove_command('help')
 
-ytdl_format_options = {
-    'format': 'bestaudio/best',
-    'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-    'restrictfilenames': True,
-    'noplaylist': True,
-    'nocheckcertificate': True,
-    'ignoreerrors': False,
-    'logtostderr': False,
-    'quiet': True,
-    'no_warnings': True,
-    'default_search': 'auto',
-    'source_address': '0.0.0.0' # bind to ipv4 since ipv6 addresses cause issues sometimes
-}
+async def load_extensions():
+    for filename in os.listdir("./cogs"):
+        if filename.endswith(".py"):
+            await bot.load_extension(f"cogs.{filename[:-3]}")
 
-ffmpeg_options = {
-    'options': '-vn'
-}
+async def main():
+    async with bot:
+        await load_extensions()
+        # TOKEN = "MTEyODkzMTk3MDI2OTg0NzU2Mg.Gkilhq.UDjdSsK6iRH9Gp7nmgekgurUCDPgrDQ-QVJbPI"
+        TOKEN = open(r"C:\Users\Rj\Desktop/TOKEN.txt","r").readline()
+        @bot.event
+        async def on_ready():
+          print('We have logged in as {0.user}'.format(bot))
+        await bot.start(TOKEN)
 
-ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+if __name__=="__main__":
+  asyncio.run(main())
 
-class YTDLSource(discord.PCMVolumeTransformer):
-    def __init__(self, source, *, data, volume=0.5):
-        super().__init__(source, volume)
+# from utils.keep_alive import keep_alive
+# from utils.bot import Bot
+# import os
 
-        self.data = data
+# def main():
+#   bot = Bot()
+#   cog = bot.get_cog('Greetings')
+#   commands = cog.get_commands()
+#   print([c.name for c in commands])
+#   # TOKEN = os.environ.get("TOKEN")
+#   TOKEN = "MTEyODkzMTk3MDI2OTg0NzU2Mg.Gkilhq.UDjdSsK6iRH9Gp7nmgekgurUCDPgrDQ-QVJbPI"
+#   @bot.event
+#   async def on_ready():
+#     print('We have logged in as {0.user}'.format(bot))
+#   keep_alive()
+#   bot.run(TOKEN)
 
-        self.title = data.get('title')
-        self.url = data.get('url')
+# if __name__=="__main__":
+#   main()
 
-    @classmethod
-    async def from_url(cls, url, *, loop=None, stream=False):
-        loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
+# import os
+# import random
 
-        if 'entries' in data:
-            # take first item from a playlist
-            data = data['entries'][0]
+# from discord.ext import commands
+# import discord
+# import requests
+# import nacl
+# import asyncio
 
-        filename = data['url'] if stream else ytdl.prepare_filename(data)
-        return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
+# intents = discord.Intents.default()
+# intents.message_content = True
 
-intents = discord.Intents.default()
-intents.message_content = True
+# bot = commands.Bot(command_prefix='$', intents=intents)
 
-bot = commands.Bot(command_prefix='$', intents=intents)
+# @bot.event
+# async def on_ready():
+#   print('We have logged in as {0.user}'.format(bot))
 
-@bot.event
-async def on_ready():
-  print('We have logged in as {0.user}'.format(bot))
+# @bot.command()
+# async def test(ctx):
+#   print(ctx.message.author.name)
 
-@bot.command()
-async def test(ctx):
-  print(ctx.message.author.name)
+# @bot.command()
+# async def generate(ctx, type):
+#   headers = {
+#     'User-Agent' : 'Gamer Bot - B Box9688' 
+#   }
 
-@bot.command()
-async def generate(ctx, type):
-  headers = {
-    'User-Agent' : 'Gamer Bot - B Box9688' 
-  }
-
-  if ctx.message.author.name == "nelsons":
-    r = requests.get(f'https://www.zerochan.net/Klee?json',headers=headers)
-    item = random.choice(tuple(r.json()['items']))
-    await ctx.send(item['thumbnail'])
-    return
+#   if ctx.message.author.name == "nelsons":
+#     r = requests.get(f'https://www.zerochan.net/Klee?json',headers=headers)
+#     item = random.choice(tuple(r.json()['items']))
+#     await ctx.send(item['thumbnail'])
+#     return
   
-  match type:
-    case 'girl':
-      tags = {'Female', 'Solo'}
-    case 'boy':
-      tags = {'Male', 'Solo'}
+#   match type:
+#     case 'girl':
+#       tags = {'Female', 'Solo'}
+#     case 'boy':
+#       tags = {'Male', 'Solo'}
 
-  # experimental concept for $generate but requires new parsing method
-  # to generate json objects and improved random generator
+#   # experimental concept for $generate but requires new parsing method
+#   # to generate json objects and improved random generator
 
-  # url = 'https://www.zerochan.net/'
-  # for tag in tags:
-  #   url += tag
-  #   if tag == tags[-1]:
-  #     url += '?json'
-  #   else:
-  #     url += ','
+#   # url = 'https://www.zerochan.net/'
+#   # for tag in tags:
+#   #   url += tag
+#   #   if tag == tags[-1]:
+#   #     url += '?json'
+#   #   else:
+#   #     url += ','
 
-  # print(url)
-  # r = requests.get(url,headers=headers)
-  # print(r.json()['items'])
-  # item = random.choice(tuple(r.json()['items']))
-  # await ctx.send(item['thumbnail'])
-  # return
+#   # print(url)
+#   # r = requests.get(url,headers=headers)
+#   # print(r.json()['items'])
+#   # item = random.choice(tuple(r.json()['items']))
+#   # await ctx.send(item['thumbnail'])
+#   # return
   
-  id = str(random.randint(1, 200))
-  r = requests.get(f'https://www.zerochan.net/?p={id}&l=25&s=fav&json',headers=headers)
-  items = r.json()['items']
-  for item in items:
-    if tags.issubset(item['tags']):
-      await ctx.send(item['thumbnail'])
-      return
+#   id = str(random.randint(1, 200))
+#   r = requests.get(f'https://www.zerochan.net/?p={id}&l=25&s=fav&json',headers=headers)
+#   items = r.json()['items']
+#   for item in items:
+#     if tags.issubset(item['tags']):
+#       await ctx.send(item['thumbnail'])
+#       return
 
-@bot.command()
-async def play(ctx, url):
-    print(url)
-    server = ctx.message.guild
-    voice_channel = server.voice_client
-
-    async with ctx.typing():
-        player = await YTDLSource.from_url(url, loop=bot.loop)
-        ctx.voice_channel.play(player, after=lambda e: print('Player error: %s' % e) if e else None)
-    await ctx.send('Now playing: {}'.format(player.title))
       
-@bot.command()
-async def joinVoice(ctx):
-    voice_state = ctx.author.voice
+# @bot.command()
+# async def joinVoice(ctx):
+#     voice_state = ctx.author.voice
 
-    if voice_state is not None:
-      await voice_state.channel.connect()
-    else:
-        # Exiting if the user is not in a voice channel
-        return await ctx.send('You need to be in a voice channel to use this command')
-  # discord.VoiceState.channel(ctx.message.author.name)
-  # await connect
-  # TODO: Spotify playlist
-  # 1) Ask spotify to play a random song from a listed playlist (also play song
-  #      from playlist)
-  #     - Retrieve user playlists
-  #     - Play a song by random or selection from playlist
-  # 2) Ask spotify to play a recommended song based on a playlist
-  # 3) General functionality
-  #     - Join voice channel
-  #     - Pause/play
-  #     - Skip
-  #     - Queue
-  #     - List song/artist/link
-keep_alive()
-bot.run(os.environ['TOKEN'])
+#     if voice_state is not None:
+#       await voice_state.channel.connect()
+#     else:
+#         # Exiting if the user is not in a voice channel
+#         return await ctx.send('You need to be in a voice channel to use this command')
+#   # discord.VoiceState.channel(ctx.message.author.name)
+#   # await connect
+#   # TODO: Spotify playlist
+#   # 1) Ask spotify to play a random song from a listed playlist (also play song
+#   #      from playlist)
+#   #     - Retrieve user playlists
+#   #     - Play a song by random or selection from playlist
+#   # 2) Ask spotify to play a recommended song based on a playlist
+#   # 3) General functionality
+#   #     - Join voice channel
+#   #     - Pause/play
+#   #     - Skip
+#   #     - Queue
+#   #     - List song/artist/link
+# keep_alive()
+# bot.run('MTEyODkzMTk3MDI2OTg0NzU2Mg.Gkilhq.UDjdSsK6iRH9Gp7nmgekgurUCDPgrDQ-QVJbPI')
