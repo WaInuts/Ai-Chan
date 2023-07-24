@@ -27,7 +27,6 @@ class message(commands.Cog):
         id = str(random.randint(1, 200))
         r = requests.get(f'https://www.zerochan.net/?p={id}&l=25&s=fav&json',headers=headers)
         items = r.json()['items']
-        print("test")
         for item in items:
             if tags.issubset(item['tags']):
                 await ctx.send(item['thumbnail'])
