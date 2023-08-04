@@ -12,5 +12,13 @@ class Debug(commands.Cog):
     async def myvc(self, ctx):
         await ctx.send(f'{ctx.author.voice}')
 
+    @commands.command()
+    async def help(self, ctx):
+        helptext = "```"
+        for command in self.bot.commands:
+            helptext+=f"{command}\n"
+        helptext+="```"
+        await ctx.send(helptext)
+
 async def setup(bot):
     await bot.add_cog(Debug(bot)) 

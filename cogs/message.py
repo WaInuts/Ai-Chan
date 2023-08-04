@@ -31,7 +31,7 @@ class message(commands.Cog):
             if tags.issubset(item['tags']):
                 await ctx.send(item['thumbnail'])
                 return
-
+    
 async def setup(bot):
     await bot.add_cog(message(bot))
 

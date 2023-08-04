@@ -52,12 +52,11 @@ class YTDLSource(discord.PCMVolumeTransformer):
         loop = loop or asyncio.get_event_loop()
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
 
+        # for individual videos
         if url not in playlist and 'entries' not in data:
             playlist.append(url)
-        # if len(playlist) == 0 and 'entries' not in data:
-        #     playlist.append(url)
-        # elif url and 'entries' not in data:
         
+        # for playlist
         if 'entries' in data:
             for entry in data['entries']:
                 playlist.append(entry['original_url'])
@@ -143,26 +142,22 @@ class Music(commands.Cog):
     async def pause(self, ctx):
         if await self.playingaudio(ctx, 'Pausing song'):
             await ctx.voice_client.pause()
-        return
 
     @commands.command()
     async def resume(self, ctx):
         if await self.playingaudio(ctx, 'Resuming song'):
             await ctx.voice_client.resume()
-        return
         
     @commands.command()
     async def stop(self, ctx):
         if await self.playingaudio(ctx, 'Stopping song'):
             await ctx.voice_client.stop()
-        return
 
     @commands.command()
     async def skip(self, ctx):
         if await self.playingaudio(ctx, 'Skipping song') and len(playlist) >= 0:
             await ctx.voice_client.stop()
             await self.after_play(ctx)
-        return
     
     @commands.command()
     async def clearq(self, ctx):
@@ -183,7 +178,9 @@ class Music(commands.Cog):
         try:
             if ctx.voice_client.is_playing():
                 await ctx.send('Audio currently playing!')
-                return
+            else:
+                await ctx.send('Hope you enjoy! ;)')
+                await self.play(ctx, 'https://youtube.com/playlist?list=PLdGAH7P9YXly2QO_Mpx_fmsBleDynSqGC&si=ko4vIy0kAKOLUsD3')
         except:
             await ctx.send('Hope you enjoy! ;)')
             await self.play(ctx, 'https://youtube.com/playlist?list=PLdGAH7P9YXly2QO_Mpx_fmsBleDynSqGC&si=ko4vIy0kAKOLUsD3')
