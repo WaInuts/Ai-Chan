@@ -3,30 +3,26 @@ from characterai import PyAsyncCAI
 from utils import config
 
 class Cai(PyAsyncCAI):
-    def __init__(self, client, history_id, tgt):
+    def __init__(self, client, chat_id, author):
         super().__init__(token=config.CHARACTER_AI_TOKEN
         )
         
         self.client = client
-        self.history_id = history_id
-        self.tgt = tgt
+        self.chat_id = chat_id
+        self.author = author
         self.char = 'U3dJdreV9rrvUiAnILMauI-oNH838a8E_kEYfOFPalE'
 
     @classmethod
     async def setup(cls):
 
         client = PyAsyncCAI(config.CHARACTER_AI_TOKEN)
-        await client.start()
-        chat = await client.chat.get_chat('U3dJdreV9rrvUiAnILMauI-oNH838a8E_kEYfOFPalE')
+        chat = await client.chat2.get_chat('U3dJdreV9rrvUiAnILMauI-oNH838a8E_kEYfOFPalE')
+        print(chat)
+        chat_id = chat['chats'][0]['chat_id']
+        author = {
+            'author_id': chat['chats'][0]['creator_id'],
+            'is_human': True,
+            'name': 'boo'
+        }
 
-        history_id = chat['external_id']
-        participants = chat['participants']
-
-        # In the list of "participants",
-        # a character can be at zero or in the first place
-        if not participants[0]['is_human']:
-            tgt = participants[0]['user']['username']
-        else:
-            tgt = participants[1]['user']['username']
-
-        return cls(client, history_id, tgt)
+        return cls(client, chat_id, author)

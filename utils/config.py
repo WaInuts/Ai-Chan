@@ -4,7 +4,7 @@ import json
 prefix = "."
 starting_activity = discord.Activity(type=discord.ActivityType.listening, name=' You... :-)')
 
-with open(r"C:\Users\Rj\Desktop/config.json", 'r') as f:
+with open(r"C:\Users\boo\Desktop/config.json", 'r') as f:
     configData = json.load(f)
 
 DISCORD_TOKEN = configData['TOKENS']['DISCORD']
@@ -16,4 +16,4 @@ f.close()
 # zeroChan = {
 #     'User-Agent' : 'Gamer Bot - B Box9688',
 #     "url" : f'https://www.zerochan.net/?p={id}&l=25&s=fav&json'
-# }
+# }w

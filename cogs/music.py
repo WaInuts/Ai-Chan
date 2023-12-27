@@ -5,6 +5,7 @@ import yt_dlp as youtube_dl
 import discord
 import requests
 import asyncio
+import json
 import random
 
 playlist = []
@@ -27,7 +28,9 @@ ytdl_format_options = {
     'no_warnings': True,
     'default_search': 'auto',
     'source_address': '0.0.0.0', # bind to ipv4 since ipv6 addresses cause issues sometimes
-    'max_filesize' : 5000000 # bytes
+    'max_filesize' : 100000000, # bytes
+    # 'writethumbnail': True,
+    'embedthumbnail': True,
 }
 
 ffmpeg_options = {
@@ -39,19 +42,22 @@ ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 # TODO
 # listen for status of bot's voice state to update voice client accordingly
 class YTDLSource(discord.PCMVolumeTransformer):
-    def __init__(self, source, *, data, volume=0.5):
+    def __init__(self, source, *, data, volume=1):
         super().__init__(source, volume)
         
         self.data = data
 
         self.title = data.get('title')
         self.url = data.get('url')
+        self.thumbnail = data.get('thumbnail')
+        self.duration_string = data.get('duration_string')
 
     @classmethod
     async def from_url(cls, url, *, loop=None, stream=False):
+        print(url)
         loop = loop or asyncio.get_event_loop()
         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
-
+        #print(json.dumps(ytdl.sanitize_info(data)))
         # for individual videos
         if url not in playlist and 'entries' not in data:
             playlist.append(url)
@@ -65,7 +71,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
             #     playlist = random.shuffle(playlist)
 
             # take first item data from a playlist
-            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(playlist[0], download=not stream))
+            firstItemData = data['entries'][0]['original_url']
+            data = await loop.run_in_executor(None, lambda: ytdl.extract_info(firstItemData, download=not stream))
 
         if data['filesize'] > ytdl_format_options['max_filesize']:
             raise MaxFileException()
@@ -85,17 +92,18 @@ class Music(commands.Cog):
         voice_state = ctx.author.voice
 
         if voice_state and ctx.voice_client is None:
-            return await voice_state.channel.connect()
+            channel = ctx.message.author.voice.channel
+            return await channel.connect()
         elif ctx.voice_client is not None:
             return ctx.voice_client
             # Exiting if the user is already in a voice channel
         else:
-            await ctx.send('You need to be in a voice channel to use this command.')
+            await ctx.send('<:PD_hutao:1187216515477540945> You aren\'t in a voice channel.')
             return False
             # Exiting if the user is not in a voice channel
         
     @commands.command()    
-    async def play(self, ctx, url):
+    async def play(self, ctx, *, url):
         vc = await self.joinvoice(ctx)
         if vc is False: return
 
@@ -104,8 +112,10 @@ class Music(commands.Cog):
             # get audio source of requested url
             try:
                 player = await YTDLSource.from_url(url, loop=self.loop)
+                print(player)
+                print(player.title)
             except MaxFileException:
-                await ctx.send('Failed to play: Max file size is {} MB' \
+                await ctx.send('Failed to play <:gi_hutao_notlikethis:1187215478083563662> Max file size is {} MB!' \
                                .format(ytdl_format_options['max_filesize'] / 10**6))
                 return
 
@@ -115,75 +125,104 @@ class Music(commands.Cog):
                          else asyncio.run(self.after_play(ctx)))
             except discord.ClientException:
                 # playlist.append(player.url)
-                await ctx.send('Added to queue: {}'.format(player.title))
+                print('queued')
+                print(player.title)
+                queueEmbed = discord.Embed(title="Added to Queue! <:HuTao_GotThis:1187259987291021352> ", 
+                                    description=f'{player.title}\n`{player.duration_string}`')
+                queueEmbed.set_thumbnail(url='{}'.format(player.thumbnail))
+                queueEmbed.set_footer(text= 'Will play after the current song!'if len(playlist)<3 else f'Position #{len(playlist)}')
+
+                await ctx.send(embed=queueEmbed)
+                # await ctx.send('Added to queue: {}'.format(player.title))
                 return
 
-        await ctx.send('Now playing: {}'.format(player.title))
+        embed = discord.Embed(title="<a:hutao_dance:1187215482844098641> Now Playing <a:hutao_dance:1187215482844098641>", 
+                              description=f'{player.title}\n`{player.duration_string}`\n\nRequested by: {ctx.message.author.mention}')
+        embed.set_thumbnail(url='{}'.format(player.thumbnail))
+
+        await ctx.send(embed=embed)
 
     async def after_play(self, ctx):
-        playlist.pop(0)
-        # await self.play(ctx, playlist[0])
-        server = ctx.message.guild
-        voice_channel = server.voice_client
-        player = await YTDLSource.from_url(playlist[0], loop=self.loop)
-        voice_channel.play(player, after=lambda e: asyncio.run(self.after_play(ctx)))
-        await server.send('Now playing: {}'.format(player.title))
+        if len(playlist) > 0:
+            playlist.pop(0)
+            print("after_play")
+            # await self.play(ctx, playlist[0])
+            server = ctx.message.channel
+            voice_channel = ctx.message.guild.voice_client
+            player = await YTDLSource.from_url(playlist[0], loop=self.loop)
+            voice_channel.play(player, after=lambda e: asyncio.run(self.after_play(ctx)))
+            embed = discord.Embed(title="<a:hutao_dance:1187215482844098641> Now Playing <a:hutao_dance:1187215482844098641>", 
+                                description=f'{player.title}\n`{player.duration_string}`\n\nRequested by: {ctx.message.author.mention}')
+            embed.set_thumbnail(url='{}'.format(player.thumbnail))
+            # To Fix: "RuntimeError: Timeout context manager should be used inside a task" 
+            asyncio.run_coroutine_threadsafe(ctx.send(embed=embed), self.bot.loop)
     
     @commands.command()
-    async def playingaudio(self, ctx, msg = 'Playing audio :)'):
+    async def playingaudio(self, ctx, msg = ':arrow_forward: **Playing Audio!**', imageURL = 'https://imgur.com/Ptd2Xxc.gif'):
         if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
-            await ctx.reply(msg)
+            embed = discord.Embed(title=msg)
+            embed.set_image(url=imageURL)
+            await ctx.reply(embed=embed)
             return True
         else:
-            await ctx.reply("Nothing is playing")
+            await ctx.reply("**Nothing is Playing...**", "https://imgur.com/3IJvykn.png")
             return False
     
     @commands.command()
     async def pause(self, ctx):
-        if await self.playingaudio(ctx, 'Pausing song'):
+        if await self.playingaudio(ctx, ':pause_button: **Pausing Song...**', 'https://imgur.com/5J2YtXV.png'):
             await ctx.voice_client.pause()
 
     @commands.command()
     async def resume(self, ctx):
-        if await self.playingaudio(ctx, 'Resuming song'):
+        if await self.playingaudio(ctx, ':arrow_forward: **Resuming Song!**', 'https://imgur.com/Ptd2Xxc.gif'):
             await ctx.voice_client.resume()
         
     @commands.command()
     async def stop(self, ctx):
-        if await self.playingaudio(ctx, 'Stopping song'):
+        if await self.playingaudio(ctx, ':stop_button: **Stopping Song.**', 'https://imgur.com/3IJvykn.png'):
             await ctx.voice_client.stop()
 
     @commands.command()
     async def skip(self, ctx):
-        if await self.playingaudio(ctx, 'Skipping song') and len(playlist) >= 0:
+        if await self.playingaudio(ctx, ':fast_forward: **Skipping Song!**', 'https://imgur.com/7NVmyh2.png') and len(playlist) >= 0:
             await ctx.voice_client.stop()
+            # await ctx.invoke(self.bot.get_command('play'))
             await self.after_play(ctx)
     
     @commands.command()
     async def clearq(self, ctx):
         if len(playlist) > 0:
-            await ctx.reply('Clearing queue!')
+            await ctx.reply('**Clearing Queue!** <:hutaodumbomoebay:1187257013869232189>')
             playlist.clear()
         return
 
     @commands.command()
     async def listq(self, ctx):
         if len(playlist) > 0:
-            await ctx.send('Currently in queue: {} '.format(playlist))
+            await ctx.send('**Currently in Queue**: {} '.format(playlist))
         else:
-            await ctx.reply('Nothing in queue!')
+            embed = discord.Embed(title='**Nothing in Queue!**')
+            embed.set_image(url='https://imgur.com/3IJvykn.png')
+            await ctx.reply(embed=embed)
 
     @commands.command()
     async def sing(self, ctx):
         try:
             if ctx.voice_client.is_playing():
-                await ctx.send('Audio currently playing!')
+
+                await ctx.send(':arrow_forward: **Playing Audio!**')
             else:
-                await ctx.send('Hope you enjoy! ;)')
-                await self.play(ctx, 'https://youtube.com/playlist?list=PLdGAH7P9YXly2QO_Mpx_fmsBleDynSqGC&si=ko4vIy0kAKOLUsD3')
+                embed = discord.Embed(title=':musical_note: **Hope you enjoy!~** :musical_note:')
+                embed.set_image(url='https://imgur.com/iYZeeZd.png')
+                await ctx.send(embed=embed)
+                await ctx.invoke(self.bot.get_command('play'), url='https://youtube.com/playlist?list=PLdGAH7P9YXly2QO_Mpx_fmsBleDynSqGC&si=ko4vIy0kAKOLUsD3')
+
         except:
-            await ctx.send('Hope you enjoy! ;)')
-            await self.play(ctx, 'https://youtube.com/playlist?list=PLdGAH7P9YXly2QO_Mpx_fmsBleDynSqGC&si=ko4vIy0kAKOLUsD3')
+            embed = discord.Embed(title=':musical_note: **Hope you enjoy!~** :musical_note:')
+            embed.set_image(url='https://imgur.com/iYZeeZd.png')
+            await ctx.send(embed=embed)
+            await ctx.invoke(self.bot.get_command('play'), url='https://youtube.com/playlist?list=PLdGAH7P9YXly2QO_Mpx_fmsBleDynSqGC&si=ko4vIy0kAKOLUsD3')
 
 async def setup(bot):
     await bot.add_cog(Music(bot))

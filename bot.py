@@ -6,6 +6,8 @@ import random
 import os
 from cogs import listeners
 
+discord.utils.setup_logging()
+
 class Bot(commands.Bot):
     def __init__(self, cai):
         super().__init__(

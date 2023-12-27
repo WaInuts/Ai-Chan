@@ -1,7 +1,8 @@
 from discord.ext import commands
+import logging
 import asyncio
 from characterai import PyAsyncCAI
-
+from utils import config
 
 class listeners(commands.Cog):
     def __init__(self, bot, cai):
@@ -17,13 +18,8 @@ class listeners(commands.Cog):
 
         if self.bot.user in message.mentions:
             async with message.channel.typing():
-                data = await self.cai.client.chat.send_message(
-                self.cai.char, message.content, 
-                history_external_id=self.cai.history_id, tgt=self.cai.tgt
-                )
-                text = data['replies'][0]['text']
+                async with self.cai.client.connect(config.CHARACTER_AI_TOKEN) as chat2:
+                    data = await chat2.send_message(self.cai.char, self.cai.chat_id, message.content, self.cai.author)
+                text = data['turn']['candidates'][0]['raw_content']
+                print(text)
             await message.channel.send(f"{text}")
-
-# async def setup(bot):
-#     await bot.add_cog(listeners(bot))
-
