@@ -2,5 +2,18 @@
 __pycache__/
 *.py[cod]
 
+# Unit test / coverage reports
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+
+# venv
+venv/
+pyvenv.cfg
+
+# resources
 *.webm
 *.png
+utils/config.json

@@ -13,7 +13,7 @@ class Bot(commands.Bot):
         super().__init__(
             command_prefix=config.prefix, 
             activity=config.starting_activity, 
-            intents=discord.Intents.all(), 
+            intents=discord.Intents.all(),
             help_command=None,
         )
         self.cai = cai

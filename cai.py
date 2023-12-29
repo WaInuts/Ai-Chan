@@ -1,5 +1,5 @@
 import asyncio
-from characterai import PyAsyncCAI
+from characterai import PyAsyncCAI, errors
 from utils import config
 
 class Cai(PyAsyncCAI):
@@ -17,6 +17,7 @@ class Cai(PyAsyncCAI):
 
         client = PyAsyncCAI(config.CHARACTER_AI_TOKEN)
         chat = await client.chat2.get_chat('U3dJdreV9rrvUiAnILMauI-oNH838a8E_kEYfOFPalE')
+
         print(chat)
         chat_id = chat['chats'][0]['chat_id']
         author = {
