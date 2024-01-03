@@ -3,6 +3,7 @@ import discord
 
 import yt_dlp as youtube_dl
 import discord
+import os
 import requests
 import asyncio
 import json
@@ -102,6 +103,14 @@ class Music(commands.Cog):
             return False
             # Exiting if the user is not in a voice channel
         
+    @commands.command()
+    async def leavevoice(self, ctx):
+        if(ctx.voice_client):
+            await ctx.guild.voice_client.disconnect()
+            await ctx.send("Leaving Voice Channel...")
+        else:
+            await ctx.send("I'm not in a Voice Channel!")
+        
     @commands.command()    
     async def play(self, ctx, *, url):
         vc = await self.joinvoice(ctx)
@@ -146,6 +155,8 @@ class Music(commands.Cog):
         if len(playlist) > 0:
             playlist.pop(0)
             print("after_play")
+            ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            print(ROOT_DIR)
             # await self.play(ctx, playlist[0])
             server = ctx.message.channel
             voice_channel = ctx.message.guild.voice_client
@@ -157,6 +168,33 @@ class Music(commands.Cog):
             # To Fix: "RuntimeError: Timeout context manager should be used inside a task" 
             asyncio.run_coroutine_threadsafe(ctx.send(embed=embed), self.bot.loop)
     
+    async def delete_song():
+        ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        print(ROOT_DIR)
+        print('Song Deleted.')
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if not member.id == self.bot.user.id:
+            return
+
+        elif before.channel is None:
+            channel = member.guild.system_channel
+            voice = after.channel.guild.voice_client
+            time = 0
+            while True:
+                await asyncio.sleep(1)
+                time = time + 1
+                if voice.is_playing() and not voice.is_paused():
+                    time = 0
+                if time == 300:
+                    embed = discord.Embed(title="Disconnected due to inactivity!")
+                    embed.set_image(url='https://imgur.com/3IJvykn.png')
+                    await channel.send(embed=embed)
+                    await voice.disconnect()
+                if not voice.is_connected():
+                    break
+
     @commands.command()
     async def playingaudio(self, ctx, msg = ':arrow_forward: **Playing Audio!**', imageURL = 'https://imgur.com/Ptd2Xxc.gif'):
         if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():

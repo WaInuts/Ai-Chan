@@ -1,15 +1,19 @@
 import discord
 import json
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+CHARACTER_AI_TOKEN = os.getenv('CHARACTER_AI_TOKEN')
 
 prefix = "."
 starting_activity = discord.Activity(type=discord.ActivityType.listening, name=' You... :-)')
 
-configJsonDir = os.getcwd() + r"\utils\config.json"
 try:
-    with open(configJsonDir, 'r') as f:
-        configData = json.load(f)
-        f.close()
+    DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+    CHARACTER_AI_TOKEN = os.getenv('CHARACTER_AI_TOKEN')
 except:
     DISCORD_TOKEN = input("Enter Discord bot OAuth2: ")
     CHARACTER_AI_TOKEN = input("Enter Character.ai user OAuth: ")
@@ -24,12 +28,8 @@ except:
         }
     }
 
-    with open(configJsonDir, 'w+') as f:
-        json.dump(configData, f, indent=4)
-        f.close()
-
-DISCORD_TOKEN = configData['TOKENS']['DISCORD']
-CHARACTER_AI_TOKEN = configData['TOKENS']['CHARACTER_AI']
+# DISCORD_TOKEN = configData['TOKENS']['DISCORD']
+# CHARACTER_AI_TOKEN = configData['TOKENS']['CHARACTER_AI']
 # GOOGLE_API_KEY = configData['API_KEYS']['GOOGLE']
 
 # zeroChan = {
