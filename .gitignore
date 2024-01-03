@@ -17,3 +17,7 @@ pyvenv.cfg
 *.webm
 *.png
 utils/config.json
+
+# confidential
+*.zip
+.env
