@@ -1,4 +1,4 @@
-from cogs import music
+from . import music_old
 import pytest
 import math as m
 
@@ -14,6 +14,6 @@ def song_request():
 
 @pytest.mark.asyncio
 async def test_maxFileSize(song_request):
-    with pytest.raises(music.MaxFileException):
-        await music.YTDLSource.from_url(url=song_request['url'], loop=song_request['loop'])
+    with pytest.raises(music_old.MaxFileException):
+        await music_old.YTDLSource.from_url(url=song_request['url'], loop=song_request['loop'])
 
