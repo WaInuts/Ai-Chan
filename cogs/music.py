@@ -1,267 +1,382 @@
-# from discord.ext import commands
-# import discord
+from discord.ext import commands
+import discord
 
-# import yt_dlp as youtube_dl
-# import discord
-# import os
-# import requests
-# import asyncio
-# import json
-# import random
+import sys
+import itertools
+import traceback
+import asyncio
+from async_timeout import timeout
+from functools import partial
+import yt_dlp as youtube_dl
 
-# playlist = []
+ytdlopts = {
+    'format': 'bestaudio/best',
+    'outtmpl': 'downloads/%(extractor)s-%(id)s-%(title)s.%(ext)s',
+    'restrictfilenames': True,
+    'noplaylist': True,
+    'nocheckcertificate': True,
+    'ignoreerrors': False,
+    'logtostderr': False,
+    'quiet': True,
+    'no_warnings': True,
+    'default_search': 'auto',
+    'source_address': '0.0.0.0'  # ipv6 addresses cause issues sometimes
+}
 
-# class MaxFileException(Exception):
-#     def __init__(self):
-#        pass
+ffmpegopts = {
+    'before_options': '-nostdin',
+    'options': '-vn'
+}
 
-# youtube_dl.utils.bug_reports_message = lambda: ''
+ytdl = youtube_dl.YoutubeDL(ytdlopts)
 
-# ytdl_format_options = {
-#     'format': 'bestaudio/best',
-#     'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-#     'restrictfilenames': True,
-#     # 'noplaylist': True,
-#     'nocheckcertificate': True,
-#     'ignoreerrors': False,
-#     'logtostderr': False,
-#     'quiet': True,
-#     'no_warnings': True,
-#     'default_search': 'auto',
-#     'source_address': '0.0.0.0', # bind to ipv4 since ipv6 addresses cause issues sometimes
-#     'max_filesize' : 100000000, # bytes
-#     # 'writethumbnail': True,
-#     'embedthumbnail': True,
-# }
 
-# ffmpeg_options = {
-#     'options': '-vn'
-# }
+class VoiceConnectionError(commands.CommandError):
+    """Custom Exception class for connection errors."""
 
-# ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
-# # TODO
-# # listen for status of bot's voice state to update voice client accordingly
-# class YTDLSource(discord.PCMVolumeTransformer):
-#     def __init__(self, source, *, data, volume=1):
-#         super().__init__(source, volume)
-        
-#         self.data = data
+class InvalidVoiceChannel(VoiceConnectionError):
+    """Exception for cases of invalid Voice Channels."""
 
-#         self.title = data.get('title')
-#         self.url = data.get('url')
-#         self.thumbnail = data.get('thumbnail')
-#         self.duration_string = data.get('duration_string')
 
-#     @classmethod
-#     async def from_url(cls, url, *, loop=None, stream=False):
-#         print(url)
-#         loop = loop or asyncio.get_event_loop()
-#         data = await loop.run_in_executor(None, lambda: ytdl.extract_info(url, download=not stream))
-#         #print(json.dumps(ytdl.sanitize_info(data)))
-#         # for individual videos
-#         if url not in playlist and 'entries' not in data:
-#             playlist.append(url)
-        
-#         # for playlist
-#         if 'entries' in data:
-#             for entry in data['entries']:
-#                 playlist.append(entry['original_url'])
+class YTDLSource(discord.PCMVolumeTransformer):
 
-#             # if shuffle == 'true':
-#             #     playlist = random.shuffle(playlist)
+    def __init__(self, source, *, data, requester):
+        super().__init__(source)
+        self.requester = requester
 
-#             # take first item data from a playlist
-#             firstItemData = data['entries'][0]['original_url']
-#             data = await loop.run_in_executor(None, lambda: ytdl.extract_info(firstItemData, download=not stream))
+        self.title = data.get('title')
+        self.web_url = data.get('webpage_url')
 
-#         if data['filesize'] > ytdl_format_options['max_filesize']:
-#             raise MaxFileException()
+        # YTDL info dicts (data) have other useful information you might want
+        # https://github.com/rg3/youtube-dl/blob/master/README.md
 
-#         filename = data['url'] if stream else ytdl.prepare_filename(data)
-#         return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
+    def __getitem__(self, item: str):
+        """Allows us to access attributes similar to a dict.
+        This is only useful when you are NOT downloading.
+        """
+        return self.__getattribute__(item)
 
-# class Music(commands.Cog):
-#     def __init__(self, bot):
-#         self.bot = bot
+    @classmethod
+    async def create_source(cls, ctx, search: str, *, loop, download=False):
+        loop = loop or asyncio.get_event_loop()
 
-#         self.loop = {}
-#         self.queue = {}
+        to_run = partial(ytdl.extract_info, url=search, download=download)
+        data = await loop.run_in_executor(None, to_run)
 
-#     @commands.command()
-#     async def joinvoice(self, ctx):
-#         voice_state = ctx.author.voice
+        if 'entries' in data:
+            # take first item from a playlist
+            data = data['entries'][0]
 
-#         if voice_state and ctx.voice_client is None:
-#             channel = ctx.message.author.voice.channel
-#             return await channel.connect()
-#         elif ctx.voice_client is not None:
-#             return ctx.voice_client
-#             # Exiting if the user is already in a voice channel
-#         else:
-#             await ctx.send('<:PD_hutao:1187216515477540945> You aren\'t in a voice channel.')
-#             return False
-#             # Exiting if the user is not in a voice channel
-        
-#     @commands.command()
-#     async def leavevoice(self, ctx):
-#         if(ctx.voice_client):
-#             await ctx.guild.voice_client.disconnect()
-#             await ctx.send("Leaving Voice Channel...")
-#         else:
-#             await ctx.send("I'm not in a Voice Channel!")
-        
-#     @commands.command()    
-#     async def play(self, ctx, *, url):
-#         vc = await self.joinvoice(ctx)
-#         if vc is False: return
+        await ctx.send(f'```ini\n[Added {data["title"]} to the Queue.]\n```')
 
-#         async with ctx.typing():
-            
-#             # get audio source of requested url
-#             try:
-#                 player = await YTDLSource.from_url(url, loop=self.loop)
-#                 print(player)
-#                 print(player.title)
-#             except MaxFileException:
-#                 await ctx.send('Failed to play <:gi_hutao_notlikethis:1187215478083563662> Max file size is {} MB!' \
-#                                .format(ytdl_format_options['max_filesize'] / 10**6))
-#                 return
+        if download:
+            source = ytdl.prepare_filename(data)
+        else:
+            return {'webpage_url': data['webpage_url'], 'requester': ctx.author, 'title': data['title']}
 
-#             # play audio source through bot
-#             try: 
-#                 vc.play(player, after= lambda e: print('Player error: %s'  % e) if e
-#                          else asyncio.run(self.after_play(ctx)))
-#             except discord.ClientException:
-#                 # playlist.append(player.url)
-#                 print('queued')
-#                 print(player.title)
-#                 queueEmbed = discord.Embed(title="Added to Queue! <:HuTao_GotThis:1187259987291021352> ", 
-#                                     description=f'{player.title}\n`{player.duration_string}`')
-#                 queueEmbed.set_thumbnail(url='{}'.format(player.thumbnail))
-#                 queueEmbed.set_footer(text= 'Will play after the current song!'if len(playlist)<3 else f'Position #{len(playlist)}')
+        return cls(discord.FFmpegPCMAudio(source), data=data, requester=ctx.author)
 
-#                 await ctx.send(embed=queueEmbed)
-#                 # await ctx.send('Added to queue: {}'.format(player.title))
-#                 return
+    @classmethod
+    async def regather_stream(cls, data, *, loop):
+        """Used for preparing a stream, instead of downloading.
+        Since Youtube Streaming links expire."""
+        loop = loop or asyncio.get_event_loop()
+        requester = data['requester']
 
-#         embed = discord.Embed(title="<a:hutao_dance:1187215482844098641> Now Playing <a:hutao_dance:1187215482844098641>", 
-#                               description=f'{player.title}\n`{player.duration_string}`\n\nRequested by: {ctx.message.author.mention}')
-#         embed.set_thumbnail(url='{}'.format(player.thumbnail))
+        to_run = partial(ytdl.extract_info, url=data['webpage_url'], download=False)
+        data = await loop.run_in_executor(None, to_run)
 
-#         await ctx.send(embed=embed)
+        return cls(discord.FFmpegPCMAudio(data['url']), data=data, requester=requester)
 
-#     async def after_play(self, ctx):
-#         if len(playlist) > 0:
-#             playlist.pop(0)
-#             print("after_play")
-#             ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-#             print(ROOT_DIR)
-#             # await self.play(ctx, playlist[0])
-#             server = ctx.message.channel
-#             voice_channel = ctx.message.guild.voice_client
-#             player = await YTDLSource.from_url(playlist[0], loop=self.loop)
-#             voice_channel.play(player, after=lambda e: asyncio.run(self.after_play(ctx)))
-#             embed = discord.Embed(title="<a:hutao_dance:1187215482844098641> Now Playing <a:hutao_dance:1187215482844098641>", 
-#                                 description=f'{player.title}\n`{player.duration_string}`\n\nRequested by: {ctx.message.author.mention}')
-#             embed.set_thumbnail(url='{}'.format(player.thumbnail))
-#             # To Fix: "RuntimeError: Timeout context manager should be used inside a task" 
-#             asyncio.run_coroutine_threadsafe(ctx.send(embed=embed), self.bot.loop)
-    
-#     async def delete_song():
-#         ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-#         print(ROOT_DIR)
-#         print('Song Deleted.')
 
-#     @commands.Cog.listener()
-#     async def on_voice_state_update(self, member, before, after):
-#         if not member.id == self.bot.user.id:
-#             return
+class MusicPlayer(commands.Cog):
+    """A class which is assigned to each guild using the bot for Music.
+    This class implements a queue and loop, which allows for different guilds to listen to different playlists
+    simultaneously.
+    When the bot disconnects from the Voice it's instance will be destroyed.
+    """
 
-#         elif before.channel is None:
-#             channel = member.guild.system_channel
-#             voice = after.channel.guild.voice_client
-#             time = 0
-#             while True:
-#                 await asyncio.sleep(1)
-#                 time = time + 1
-#                 if voice.is_playing() and not voice.is_paused():
-#                     time = 0
-#                 if time == 300:
-#                     embed = discord.Embed(title="Disconnected due to inactivity!")
-#                     embed.set_image(url='https://imgur.com/3IJvykn.png')
-#                     await channel.send(embed=embed)
-#                     await voice.disconnect()
-#                 if not voice.is_connected():
-#                     break
+    __slots__ = ('bot', '_guild', '_channel', '_cog', 'queue', 'next', 'current', 'np', 'volume')
 
-#     @commands.command()
-#     async def playingaudio(self, ctx, msg = ':arrow_forward: **Playing Audio!**', imageURL = 'https://imgur.com/Ptd2Xxc.gif'):
-#         if ctx.voice_client.is_playing() or ctx.voice_client.is_paused():
-#             embed = discord.Embed(title=msg)
-#             embed.set_image(url=imageURL)
-#             await ctx.reply(embed=embed)
-#             return True
-#         else:
-#             await ctx.reply("**Nothing is Playing...**", "https://imgur.com/3IJvykn.png")
-#             return False
-    
-#     @commands.command()
-#     async def pause(self, ctx):
-#         if await self.playingaudio(ctx, ':pause_button: **Pausing Song...**', 'https://imgur.com/5J2YtXV.png'):
-#             await ctx.voice_client.pause()
+    def __init__(self, ctx):
+        self.bot = ctx.bot
+        self._guild = ctx.guild
+        self._channel = ctx.channel
+        self._cog = ctx.cog
 
-#     @commands.command()
-#     async def resume(self, ctx):
-#         if await self.playingaudio(ctx, ':arrow_forward: **Resuming Song!**', 'https://imgur.com/Ptd2Xxc.gif'):
-#             await ctx.voice_client.resume()
-        
-#     @commands.command()
-#     async def stop(self, ctx):
-#         if await self.playingaudio(ctx, ':stop_button: **Stopping Song.**', 'https://imgur.com/3IJvykn.png'):
-#             await ctx.voice_client.stop()
+        self.queue = asyncio.Queue()
+        self.next = asyncio.Event()
 
-#     @commands.command()
-#     async def skip(self, ctx):
-#         if await self.playingaudio(ctx, ':fast_forward: **Skipping Song!**', 'https://imgur.com/7NVmyh2.png') and len(playlist) >= 0:
-#             await ctx.voice_client.stop()
-#             # await ctx.invoke(self.bot.get_command('play'))
-#             await self.after_play(ctx)
-    
-#     @commands.command()
-#     async def clearq(self, ctx):
-#         if len(playlist) > 0:
-#             await ctx.reply('**Clearing Queue!** <:hutaodumbomoebay:1187257013869232189>')
-#             playlist.clear()
-#         return
+        self.np = None  # Now playing message
+        self.volume = .5
+        self.current = None
 
-#     @commands.command()
-#     async def listq(self, ctx):
-#         if len(playlist) > 0:
-#             await ctx.send('**Currently in Queue**: {} '.format(playlist))
-#         else:
-#             embed = discord.Embed(title='**Nothing in Queue!**')
-#             embed.set_image(url='https://imgur.com/3IJvykn.png')
-#             await ctx.reply(embed=embed)
+        ctx.bot.loop.create_task(self.player_loop())
 
-#     @commands.command()
-#     async def sing(self, ctx):
-#         try:
-#             if ctx.voice_client.is_playing():
+    async def player_loop(self):
+        """Our main player loop."""
+        await self.bot.wait_until_ready()
 
-#                 await ctx.send(':arrow_forward: **Playing Audio!**')
-#             else:
-#                 embed = discord.Embed(title=':musical_note: **Hope you enjoy!~** :musical_note:')
-#                 embed.set_image(url='https://imgur.com/iYZeeZd.png')
-#                 await ctx.send(embed=embed)
-#                 await ctx.invoke(self.bot.get_command('play'), url='https://youtube.com/playlist?list=PLdGAH7P9YXly2QO_Mpx_fmsBleDynSqGC&si=ko4vIy0kAKOLUsD3')
+        while not self.bot.is_closed():
+            self.next.clear()
 
-#         except:
-#             embed = discord.Embed(title=':musical_note: **Hope you enjoy!~** :musical_note:')
-#             embed.set_image(url='https://imgur.com/iYZeeZd.png')
-#             await ctx.send(embed=embed)
-#             await ctx.invoke(self.bot.get_command('play'), url='https://youtube.com/playlist?list=PLdGAH7P9YXly2QO_Mpx_fmsBleDynSqGC&si=ko4vIy0kAKOLUsD3')
+            try:
+                # Wait for the next song. If we timeout cancel the player and disconnect...
+                async with timeout(300):  # 5 minutes...
+                    source = await self.queue.get()
+            except asyncio.TimeoutError:
+                return self.destroy(self._guild)
 
-# async def setup(bot):
-#     await bot.add_cog(Music(bot))
+            if not isinstance(source, YTDLSource):
+                # Source was probably a stream (not downloaded)
+                # So we should regather to prevent stream expiration
+                try:
+                    source = await YTDLSource.regather_stream(source, loop=self.bot.loop)
+                except Exception as e:
+                    await self._channel.send(f'There was an error processing your song.\n'
+                                             f'```css\n[{e}]\n```')
+                    continue
 
+            source.volume = self.volume
+            self.current = source
+
+            self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
+            self.np = await self._channel.send(f'**Now Playing:** `{source.title}` requested by '
+                                               f'`{source.requester}`')
+            await self.next.wait()
+
+            # Make sure the FFmpeg process is cleaned up.
+            source.cleanup()
+            self.current = None
+
+            try:
+                # We are no longer playing this song...
+                await self.np.delete()
+            except discord.HTTPException:
+                pass
+
+    def destroy(self, guild):
+        """Disconnect and cleanup the player."""
+        return self.bot.loop.create_task(self._cog.cleanup(guild))
+
+
+class Music(commands.Cog):
+    """Music related commands."""
+
+    __slots__ = ('bot', 'players')
+
+    def __init__(self, bot):
+        self.bot = bot
+        self.players = {}
+
+    async def cleanup(self, guild):
+        try:
+            await guild.voice_client.disconnect()
+        except AttributeError:
+            pass
+
+        try:
+            del self.players[guild.id]
+        except KeyError:
+            pass
+
+    async def __local_check(self, ctx):
+        """A local check which applies to all commands in this cog."""
+        if not ctx.guild:
+            raise commands.NoPrivateMessage
+        return True
+
+    async def __error(self, ctx, error):
+        """A local error handler for all errors arising from commands in this cog."""
+        if isinstance(error, commands.NoPrivateMessage):
+            try:
+                return await ctx.send('This command can not be used in Private Messages.')
+            except discord.HTTPException:
+                pass
+        elif isinstance(error, InvalidVoiceChannel):
+            await ctx.send('Error connecting to Voice Channel. '
+                           'Please make sure you are in a valid channel or provide me with one')
+
+        print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
+        traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
+
+    def get_player(self, ctx):
+        """Retrieve the guild player, or generate one."""
+        try:
+            player = self.players[ctx.guild.id]
+        except KeyError:
+            player = MusicPlayer(ctx)
+            self.players[ctx.guild.id] = player
+
+        return player
+
+    @commands.command(name='connect', aliases=['join'])
+    async def connect_(self, ctx):
+        try:
+            channel = ctx.author.voice.channel
+        except AttributeError:
+            raise InvalidVoiceChannel('No channel to join.')
+
+        vc = ctx.voice_client
+
+        if vc:
+            if vc.channel.id == channel.id:
+                return
+            try:
+                await vc.move_to(channel)
+            except asyncio.TimeoutError:
+                raise VoiceConnectionError(f'Moving to channel: <{channel}> timed out.')
+        else:
+            try:
+                await channel.connect()
+            except asyncio.TimeoutError:
+                raise VoiceConnectionError(f'Connecting to channel: <{channel}> timed out.')
+        embed = discord.Embed(title="Joined A Call")
+        embed.add_field(name="Connected To :", value=channel, inline=True)
+
+        await ctx.send(embed=embed)
+
+    @commands.command(name='play', aliases=['sing', 'p'])
+    async def play_(self, ctx, *, search: str):
+        await ctx.trigger_typing()
+
+        vc = ctx.voice_client
+
+        if not vc:
+            await ctx.invoke(self.connect_)
+
+        player = self.get_player(ctx)
+
+        # If download is False, source will be a dict which will be used later to regather the stream.
+        # If download is True, source will be a discord.FFmpegPCMAudio with a VolumeTransformer.
+        source = await YTDLSource.create_source(ctx, search, loop=self.bot.loop, download=False)
+
+        await player.queue.put(source)
+
+    @commands.command(name='pause')
+    async def pause_(self, ctx):
+        """Pause the currently playing song."""
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_playing():
+            return await ctx.send('I am not currently playing anything!')
+        elif vc.is_paused():
+            return
+
+        vc.pause()
+        await ctx.send(f'**`{ctx.author}`**: Paused the song!')
+
+    @commands.command(name='resume', aliases=['unpause'])
+    async def resume_(self, ctx):
+        """Resume the currently paused song."""
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_connected():
+            return await ctx.send('I am not currently playing anything!', )
+        elif not vc.is_paused():
+            return
+
+        vc.resume()
+        await ctx.send(f'**`{ctx.author}`**: Resumed the song!')
+
+    @commands.command(name='skip')
+    async def skip_(self, ctx):
+        """Skip the song."""
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_connected():
+            return await ctx.send('I am not currently playing anything!')
+
+        if vc.is_paused():
+            pass
+        elif not vc.is_playing():
+            return
+
+        vc.stop()
+        await ctx.send(f'**`{ctx.author}`**: Skipped the song!')
+
+    @commands.command(name='queue', aliases=['q', 'playlist'])
+    async def queue_info(self, ctx):
+        """Retrieve a basic queue of upcoming songs."""
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_connected():
+            return await ctx.send('I am not currently connected to voice!')
+
+        player = self.get_player(ctx)
+        if player.queue.empty():
+            return await ctx.send('There are currently no more queued songs.')
+
+        # Grab up to 5 entries from the queue...
+        upcoming = list(itertools.islice(player.queue._queue, 0, 5))
+
+        fmt = '\n'.join(f'**`{_["title"]}`**' for _ in upcoming)
+        embed = discord.Embed(title=f'Upcoming - Next {len(upcoming)}', description=fmt)
+
+        await ctx.send(embed=embed)
+
+    @commands.command(name='now_playing', aliases=['np', 'current', 'currentsong', 'playing'])
+    async def now_playing_(self, ctx):
+        """Display information about the currently playing song."""
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_connected():
+            return await ctx.send('I am not currently connected to voice!', )
+
+        player = self.get_player(ctx)
+        if not player.current:
+            return await ctx.send('I am not currently playing anything!')
+
+        try:
+            # Remove our previous now_playing message.
+            await player.np.delete()
+        except discord.HTTPException:
+            pass
+
+        player.np = await ctx.send(f'**Now Playing:** `{vc.source.title}` '
+                                   f'requested by `{vc.source.requester}`')
+
+    @commands.command(name='volume', aliases=['vol'])
+    async def change_volume(self, ctx, *, vol: float):
+        """Change the player volume.
+        Parameters
+        ------------
+        volume: float or int [Required]
+            The volume to set the player to in percentage. This must be between 1 and 100.
+        """
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_connected():
+            return await ctx.send('I am not currently connected to voice!', )
+
+        if not 0 < vol < 101:
+            return await ctx.send('Please enter a value between 1 and 100.')
+
+        player = self.get_player(ctx)
+
+        if vc.source:
+            vc.source.volume = vol / 100
+
+        player.volume = vol / 100
+        embed = discord.Embed(title="Volume Message",
+        description=f'The Volume Was Changed By **{ctx.author.name}**')
+        embed.add_field(name="Current Volume", value=vol, inline=True)
+        await ctx.send(embed=embed)
+        # await ctx.send(f'**`{ctx.author}`**: Set the volume to **{vol}%**')
+
+    @commands.command(name='stop', aliases=['leave'])
+    async def stop_(self, ctx):
+        """Stop the currently playing song and destroy the player.
+        !Warning!
+            This will destroy the player assigned to your guild, also deleting any queued songs and settings.
+        """
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_connected():
+            return await ctx.send('I am not currently playing anything!')
+
+        await self.cleanup(ctx.guild)
+
+async def setup(bot):
+    await bot.add_cog(Music(bot))
