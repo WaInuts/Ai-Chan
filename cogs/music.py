@@ -20,7 +20,8 @@ ytdlopts = {
     'quiet': True,
     'no_warnings': True,
     'default_search': 'auto',
-    'source_address': '0.0.0.0'  # ipv6 addresses cause issues sometimes
+    'source_address': '0.0.0.0',  # ipv6 addresses cause issues sometimes
+    'embedthumbnail': True
 }
 
 ffmpegopts = {
@@ -47,6 +48,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         self.title = data.get('title')
         self.web_url = data.get('webpage_url')
+        self.thumbnail = data.get('thumbnail')
+        self.duration_string = data.get('duration_string')
 
         # YTDL info dicts (data) have other useful information you might want
         # https://github.com/rg3/youtube-dl/blob/master/README.md
@@ -63,12 +66,18 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         to_run = partial(ytdl.extract_info, url=search, download=download)
         data = await loop.run_in_executor(None, to_run)
+        #player = MusicPlayer.get_player()
 
         if 'entries' in data:
             # take first item from a playlist
             data = data['entries'][0]
 
-        await ctx.send(f'```ini\n[Added {data["title"]} to the Queue.]\n```')
+        embed = discord.Embed(title="Added to Queue! <:HuTao_GotThis:1187259987291021352> ", 
+                            description=f'{data["title"]}\n`{data["duration_string"]}`')
+        embed.set_thumbnail(url='{}'.format(data["thumbnail"]))
+        #embed.set_footer(text= 'Will play after the current song!'if <3 else f'Position #{len(asyncio.qsize(MusicPlayer.queue))}')
+        await ctx.send(embed=embed)
+        #await ctx.send(f'```ini\n[Added {data["title"]} to the Queue.]\n```')
 
         if download:
             source = ytdl.prepare_filename(data)
