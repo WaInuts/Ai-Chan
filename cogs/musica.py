@@ -1,6 +1,7 @@
 from discord.ext import commands
 import discord
 
+import sys
 import itertools
 import traceback
 import asyncio
@@ -376,3 +377,6 @@ class Music(commands.Cog):
             return await ctx.send('I am not currently playing anything!')
 
         await self.cleanup(ctx.guild)
+
+async def setup(bot):
+    await bot.add_cog(Music(bot))
