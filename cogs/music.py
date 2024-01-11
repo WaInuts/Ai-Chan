@@ -5,9 +5,14 @@ import sys
 import itertools
 import traceback
 import asyncio
+import websockets
+import json
 from async_timeout import timeout
 from functools import partial
 import yt_dlp as youtube_dl
+from utils.helpers import send_pings
+
+from utils.config import LISTEN_MOE
 
 ytdlopts = {
     'format': 'bestaudio/best',
@@ -264,7 +269,7 @@ class Music(commands.Cog):
         # Tell user the song's position in queue.
         queue_size = player.queue.qsize()
         embed = discord.Embed(title="Added to Queue! <:HuTao_GotThis:1187259987291021352> ", 
-                            description=f'{source['title']}\n `{source['duration_string']}`')
+                            description=f"{source['title']}\n `{source['duration_string']}`")
         embed.set_thumbnail(url='{}'.format(source['thumbnail']))
         embed.set_footer(text='Will play soon!'if queue_size<=1 else f'Position #{queue_size}', icon_url='https://imgur.com/PKi66Gs.png')
         
@@ -394,6 +399,36 @@ class Music(commands.Cog):
             return await ctx.send('I am not currently playing anything!')
 
         await self.cleanup(ctx.guild)
+
+    @commands.command()
+    async def radio_loop(self, ctx):
+        voice_channel = ctx.message.guild.voice_client
+        voice_channel.play(discord.FFmpegPCMAudio(source=LISTEN_MOE), after=lambda e: asyncio.run(self.radio_loop(ctx)))
+    
+    @commands.command()
+    async def radio_song(self, ctx):
+        url = 'wss://listen.moe/gateway_v2'
+        ws = await websockets.connect(url)
+        data = json.loads(await ws.recv())
+        loop = asyncio.get_event_loop()
+        
+        while True:
+            data = json.loads(await ws.recv())
+            
+            if data['op'] == 0:
+                heartbeat = data['d']['heartbeat'] / 1000
+                loop.create_task(send_pings(ws, heartbeat))
+            elif data['op'] == 1:
+                # pprint(data)
+                songTitle = data['d']['song']['title']
+                artist = data['d']['song']['artists'][0]['name']
+                try:
+                    songHeader = songTitle + ' by ' + artist
+                except:
+                    songHeader = songTitle
+                embed = discord.Embed(title=':notes: ' + songHeader + ' :notes:')
+                await ctx.reply(embed=embed)
+                # embed.set_image(url=data['d']['song']['image'])
 
 async def setup(bot):
     await bot.add_cog(Music(bot))

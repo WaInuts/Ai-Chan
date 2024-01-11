@@ -28,6 +28,8 @@ except:
         }
     }
 
+LISTEN_MOE = 'https://listen.moe/stream'
+
 # DISCORD_TOKEN = configData['TOKENS']['DISCORD']
 # CHARACTER_AI_TOKEN = configData['TOKENS']['CHARACTER_AI']
 # GOOGLE_API_KEY = configData['API_KEYS']['GOOGLE']

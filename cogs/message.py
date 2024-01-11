@@ -2,6 +2,14 @@ from discord.ext import commands
 import random
 import requests
 import discord
+import io
+
+
+from utils.voice import *
+
+ffmpeg_options = {
+    'options': ''
+}
 
 class message(commands.Cog):
     def __init__(self, bot):
@@ -172,6 +180,28 @@ class message(commands.Cog):
     async def gio3(self, ctx):
         return await ctx.send('https://cdn.discordapp.com/attachments/368567591322779649/1188942986269175908/bbc.PNG?ex=659c5c71&is=6589e771&hm=11f3da942b571bdcab6db2de5f4b862cd2619cf876628da5a13643d207b63a9d&')
 
+    @commands.command()
+    async def TTS(self, ctx, *, phrase):
+        vc = await self.joinvoiceMsg(ctx)
+        if vc is False: return
+        text_to_speech(phrase)
+        vc.play(discord.FFmpegPCMAudio('voice'))
+
+    @commands.command()
+    async def joinvoiceMsg(self, ctx):
+        voice_state = ctx.author.voice
+
+        if voice_state and ctx.voice_client is None:
+            channel = ctx.message.author.voice.channel
+            return await channel.connect()
+        elif ctx.voice_client is not None:
+            return ctx.voice_client
+            # Exiting if the user is already in a voice channel
+        else:
+            await ctx.send('<:PD_hutao:1187216515477540945> You aren\'t in a voice channel.')
+            return False
+            # Exiting if the user is not in a voice channel
+        
 async def setup(bot):
     await bot.add_cog(message(bot))
 

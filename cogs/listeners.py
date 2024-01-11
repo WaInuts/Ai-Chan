@@ -1,8 +1,11 @@
 from discord.ext import commands
+import discord
 import logging
 import asyncio
 from characterai import PyAsyncCAI
 from utils import config
+
+from utils.voice import text_to_speech
 
 class listeners(commands.Cog):
     def __init__(self, bot, cai):
@@ -15,7 +18,6 @@ class listeners(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-
         if self.bot.user in message.mentions:
             async with message.channel.typing():
                 async with self.cai.client.connect(config.CHARACTER_AI_TOKEN) as chat2:
@@ -23,3 +25,6 @@ class listeners(commands.Cog):
                 text = data['turn']['candidates'][0]['raw_content']
                 print(text)
             await message.channel.send(f"{text}")
+            ctx = await self.bot.get_context(message)
+            text_to_speech(text)
+            ctx.voice_client.play(discord.FFmpegPCMAudio('voice'))
