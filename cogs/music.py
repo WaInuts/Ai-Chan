@@ -51,6 +51,8 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.thumbnail = data.get('thumbnail')
         self.duration_string = data.get('duration_string')
 
+        self.data = data
+
         # YTDL info dicts (data) have other useful information you might want
         # https://github.com/rg3/youtube-dl/blob/master/README.md
 
@@ -61,28 +63,24 @@ class YTDLSource(discord.PCMVolumeTransformer):
         return self.__getattribute__(item)
 
     @classmethod
-    async def create_source(cls, ctx, search: str, *, loop, download=False):
+    async def create_source(cls, bot, ctx, search: str, *, loop, download=False):
         loop = loop or asyncio.get_event_loop()
 
         to_run = partial(ytdl.extract_info, url=search, download=download)
         data = await loop.run_in_executor(None, to_run)
-        #player = MusicPlayer.get_player()
 
         if 'entries' in data:
             # take first item from a playlist
             data = data['entries'][0]
 
-        embed = discord.Embed(title="Added to Queue! <:HuTao_GotThis:1187259987291021352> ", 
-                            description=f'{data["title"]}\n`{data["duration_string"]}`')
-        embed.set_thumbnail(url='{}'.format(data["thumbnail"]))
-        #embed.set_footer(text= 'Will play after the current song!'if <3 else f'Position #{len(asyncio.qsize(MusicPlayer.queue))}')
-        await ctx.send(embed=embed)
-        #await ctx.send(f'```ini\n[Added {data["title"]} to the Queue.]\n```')
-
         if download:
             source = ytdl.prepare_filename(data)
         else:
-            return {'webpage_url': data['webpage_url'], 'requester': ctx.author, 'title': data['title']}
+            return {'webpage_url': data['webpage_url'], 
+                    'requester': ctx.author, 
+                    'title': data['title'],
+                    'thumbnail': data['thumbnail'],
+                    'duration_string': data['duration_string']}
 
         return cls(discord.FFmpegPCMAudio(source, **ffmpegopts), data=data, requester=ctx.author)
 
@@ -259,9 +257,19 @@ class Music(commands.Cog):
 
         # If download is False, source will be a dict which will be used later to regather the stream.
         # If download is True, source will be a discord.FFmpegPCMAudio with a VolumeTransformer.
-        source = await YTDLSource.create_source(ctx, search, loop=self.bot.loop, download=False)
+        source = await YTDLSource.create_source(self.bot, ctx, search, loop=self.bot.loop, download=False)
 
-        await player.queue.put(source)
+        await player.queue.put(source)   
+
+        # Tell user the song's position in queue.
+        queue_size = player.queue.qsize()
+        embed = discord.Embed(title="Added to Queue! <:HuTao_GotThis:1187259987291021352> ", 
+                            description=f'{source['title']}\n `{source['duration_string']}`')
+        embed.set_thumbnail(url='{}'.format(source['thumbnail']))
+        embed.set_footer(text='Will play soon!'if queue_size<=1 else f'Position #{queue_size}', icon_url='https://imgur.com/PKi66Gs.png')
+        
+        await ctx.send(embed=embed)
+
 
     @commands.command(name='pause')
     async def pause_(self, ctx):
@@ -320,7 +328,7 @@ class Music(commands.Cog):
         # Grab up to 5 entries from the queue...
         upcoming = list(itertools.islice(player.queue._queue, 0, 5))
 
-        fmt = '\n'.join(f'**`{_["title"]}`**' for _ in upcoming)
+        fmt = '\n'.join(f'**{postiion+1}:** **`{_["title"]}`**' for postiion, _ in enumerate(upcoming))
         embed = discord.Embed(title=f'Upcoming - Next {len(upcoming)}', description=fmt)
 
         await ctx.send(embed=embed)

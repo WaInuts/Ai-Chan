@@ -137,7 +137,7 @@ class Music(commands.Cog):
                 print('queued')
                 print(player.title)
                 queueEmbed = discord.Embed(title="Added to Queue! <:HuTao_GotThis:1187259987291021352> ", 
-                                    description=f'{player.title}\n`{player.duration_string}`')
+                                    description=f'{player.title}\n `{player.duration_string}`')
                 queueEmbed.set_thumbnail(url='{}'.format(player.thumbnail))
                 queueEmbed.set_footer(text= 'Will play after the current song!'if len(playlist)<3 else f'Position #{len(playlist)}')
 
