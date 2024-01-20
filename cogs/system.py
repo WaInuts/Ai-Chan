@@ -6,7 +6,7 @@ class System(commands.Cog):
         self.bot = bot
 
     @commands.command(name='help', aliases=['helpmemommy'])
-    async def help_(self, ctx): 
+    async def help(self, ctx): 
         title = 'Here are my commands!'
         icon_url = 'https://imgur.com/WvLDLj0.png'
 
