@@ -20,6 +20,5 @@ def text_to_speech(textData):
         voice="D4WOR9jBKvHgnblSvM6q",
         model="eleven_monolingual_v1",
     )
-
     elevenlabs.save(audio_stream, 'voice')
 

@@ -12,10 +12,12 @@ class listeners(commands.Cog):
         self.bot = bot
         self.cai = cai
     
+    description = "To talk to Hu Tao, @Hu Tao with your message!"
     @commands.Cog.listener()
     async def on_ready(self):
         print('We have logged in as {0.user}'.format(self.bot))
 
+    #TODO: recaterogize to AI cog
     @commands.Cog.listener()
     async def on_message(self, message):
         if self.bot.user in message.mentions:

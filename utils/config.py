@@ -8,7 +8,7 @@ load_dotenv()
 DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
 CHARACTER_AI_TOKEN = os.getenv('CHARACTER_AI_TOKEN')
 
-prefix = "."
+prefix = "h."
 starting_activity = discord.Activity(type=discord.ActivityType.listening, name=' You... :-)')
 
 try:
