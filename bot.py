@@ -4,7 +4,7 @@ import discord
 from utils import config
 import random
 import os
-from cogs import listeners
+from cogs import ai
 
 discord.utils.setup_logging()
 
@@ -20,9 +20,9 @@ class Bot(commands.Bot):
 
     async def load_extensions(self):
         for filename in os.listdir("./cogs"):
-            if filename.endswith(".py") and not filename.startswith(('__', 'listeners')):
+            if filename.endswith(".py") and not filename.startswith(('__', 'ai')):
                 await self.load_extension(f"cogs.{filename[:-3]}")
-            elif filename.startswith('listeners'):
-                await self.add_cog(listeners.listeners(self, self.cai))
+            elif filename.startswith('ai'):
+                await self.add_cog(ai.AI(self, self.cai))
     
 

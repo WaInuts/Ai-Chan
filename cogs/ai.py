@@ -8,17 +8,13 @@ from utils import config
 
 from utils.voice import text_to_speech
 
-class listeners(commands.Cog):
+class AI(commands.Cog):
     def __init__(self, bot, cai):
         self.bot = bot
         self.cai = cai
     
     description = "To talk to Hu Tao, @Hu Tao with your message!"
-    @commands.Cog.listener()
-    async def on_ready(self):
-        print('We have logged in as {0.user}'.format(self.bot))
     
-    #TODO: recaterogize to AI cog
     @commands.Cog.listener()
     async def on_message(self, message):
         if self.bot.user in message.mentions:
@@ -33,14 +29,20 @@ class listeners(commands.Cog):
             offset = len(bot_name)
 
             display_name = ctx.message.author.display_name
-            content = message.clean_content + f" *Stated by: {display_name}*"
+            content = message.clean_content # + f" *Stated by: {display_name}*"
 
             author_text = content[offset:len(content)]
             print(f'Message: {author_text}')
 
+            author = {
+                'author_id': self.cai.creator_id,
+                'is_human': True,
+                'name': display_name
+            }
+
             async with message.channel.typing():
                 async with self.cai.client.connect(config.CHARACTER_AI_TOKEN) as chat2:
-                    data = await chat2.send_message(self.cai.char, self.cai.chat_id, author_text, self.cai.author)
+                    data = await chat2.send_message(self.cai.char, self.cai.chat_id, author_text, author)
                 text = data['turn']['candidates'][0]['raw_content']
                 print(text)
 

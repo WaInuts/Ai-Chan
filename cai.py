@@ -3,13 +3,13 @@ from characterai import PyAsyncCAI, errors
 from utils import config
 
 class Cai(PyAsyncCAI):
-    def __init__(self, client, chat_id, author):
+    def __init__(self, client, chat_id, creator_id):
         super().__init__(token=config.CHARACTER_AI_TOKEN
         )
         
         self.client = client
         self.chat_id = chat_id
-        self.author = author
+        self.creator_id = creator_id
         self.char = 'U3dJdreV9rrvUiAnILMauI-oNH838a8E_kEYfOFPalE'
 
     @classmethod
@@ -20,10 +20,11 @@ class Cai(PyAsyncCAI):
 
         print(chat)
         chat_id = chat['chats'][0]['chat_id']
-        author = {
-            'author_id': chat['chats'][0]['creator_id'],
-            'is_human': True,
-            'name': 'boo'
-        }
+        creator_id = chat['chats'][0]['creator_id']
+        # author = {
+        #     'author_id': chat['chats'][0]['creator_id'],
+        #     'is_human': True,
+        #     'name': 'boo'
+        # }
 
-        return cls(client, chat_id, author)
+        return cls(client, chat_id, creator_id)
