@@ -10,6 +10,7 @@ nosetests.xml
 coverage.xml
 
 # venv
+*.venv/
 venv/
 pyvenv.cfg
 
@@ -19,5 +20,6 @@ pyvenv.cfg
 utils/config.json
 
 # confidential
+backups/
 *.zip
 .env
