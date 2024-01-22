@@ -38,7 +38,7 @@ class AI(commands.Cog):
                     text = data['turn']['candidates'][0]['raw_content']
                     print(f'Hu Tao: {text}')
                 except:
-                    await message.channel.send(f"*sarcastic* I couldn't quite hear you dear, can you repeat what you said? \n`An Error has occured! Please try again. blame @box`")
+                    await message.channel.send(f"*sarcastic* I couldn't quite hear you dear, can you repeat what you said? \n`An Error has occured! Please try again with a different message. blame @box`")
                     return
             await message.channel.send(f"{text}")
 
