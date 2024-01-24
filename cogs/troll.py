@@ -57,6 +57,10 @@ class Troll(commands.Cog):
     async def gio3(self, ctx):
         return await ctx.send('https://cdn.discordapp.com/attachments/368567591322779649/1188942986269175908/bbc.PNG?ex=659c5c71&is=6589e771&hm=11f3da942b571bdcab6db2de5f4b862cd2619cf876628da5a13643d207b63a9d&')
 
+    @commands.command()
+    async def gio4(self, ctx):
+        return await ctx.send('https://cdn.discordapp.com/attachments/1187285011347558440/1199580483206533150/image.png?ex=65c30f62&is=65b09a62&hm=3cf1721d83177d271579777f869b01f57fb97e89058758cb9ced356c1e4a958b&')
+
 async def setup(bot):
     await bot.add_cog(Troll(bot))
 
