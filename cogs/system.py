@@ -17,7 +17,7 @@ class System(commands.Cog):
         system = self.bot.get_cog('System')
         music = self.bot.get_cog('Music')
         #TODO: recaterogize to AI cog
-        ai = self.bot.get_cog('listeners')
+        ai = self.bot.get_cog('AI')
         fanart = self.bot.get_cog('FanArt')
 
         helptext = '' 
