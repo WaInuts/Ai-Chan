@@ -1,24 +1,67 @@
-# import requests
-
-# CHUNK_SIZE = 1024
-# url = "https://api.elevenlabs.io/v1/text-to-speech/<voice-id>"
-
-# headers = {
-import requests
 import os
-import json
-import elevenlabs
-from dotenv import load_dotenv
+import asyncio
 
-load_dotenv()
+import speech_recognition as sr
+from discord.ext import commands
+import torch
 
-elevenlabs.set_api_key(os.getenv('ELEVEN_LABS_API_KEY'))
+class VoiceConnectionError(commands.CommandError):
+    """Custom Exception class for connection errors."""
 
-def text_to_speech(textData):
-    audio_stream = elevenlabs.generate(
-        text=textData,
-        voice="D4WOR9jBKvHgnblSvM6q",
-        model="eleven_monolingual_v1",
-    )
-    elevenlabs.save(audio_stream, 'voice')
+class InvalidVoiceChannel(VoiceConnectionError):
+    """Exception for cases of invalid Voice Channels."""
+
+# https://github.com/snakers4/silero-models#text-to-speech
+def silero_tts(text):
+    language = "en"
+    model = "v3_en"
+    speaker = "en_21"
+
+    device = torch.device('cpu')
+    torch.set_num_threads(4)
+    local_file = 'model.pt'
+
+    if not os.path.isfile(local_file):
+        torch.hub.download_url_to_file(f'https://models.silero.ai/models/tts/{language}/{model}.pt',
+                                    local_file)  
+
+    model = torch.package.PackageImporter(local_file).load_pickle("tts_models", "model")
+    model.to(device)
+
+    sample_rate = 48000
+
+    return model.save_wav(text=text,
+                                speaker=speaker,
+                                sample_rate=sample_rate)
+
+def get_text(audioFilePath):
+    r = sr.Recognizer()
+    with sr.AudioFile(audioFilePath) as source:
+        audioFilePath = r.record(source)
+        try:
+            return r.recognize_google(audioFilePath, language='en-US')
+            print('Decoded text from Audio is {}'.format(recognized_text))
+        except:
+            print('Sorry could not recognize voice')
+
+async def connect(ctx):
+    try:
+        channel = ctx.author.voice.channel
+    except AttributeError:
+        raise InvalidVoiceChannel('No channel to join.')
+    vc = ctx.voice_client
+    if vc:
+        if vc.channel.id == channel.id:
+            return vc
+        try:
+            await vc.move_to(channel)
+            return vc
+        except asyncio.TimeoutError:
+            raise VoiceConnectionError(f'Moving to channel: <{channel}> timed out.')
+    else:
+        try:
+            await channel.connect()
+            return vc
+        except asyncio.TimeoutError:
+            raise VoiceConnectionError(f'Connecting to channel: <{channel}> timed out.')
 

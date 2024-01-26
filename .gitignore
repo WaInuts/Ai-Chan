@@ -17,6 +17,7 @@ pyvenv.cfg
 # resources
 *.webm
 *.png
+test.wav
 utils/config.json
 
 # confidential

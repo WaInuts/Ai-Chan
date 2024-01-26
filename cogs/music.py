@@ -419,7 +419,6 @@ class Music(commands.Cog):
                 heartbeat = data['d']['heartbeat'] / 1000
                 loop.create_task(send_pings(ws, heartbeat))
             elif data['op'] == 1:
-                # pprint(data)
                 songTitle = data['d']['song']['title']
                 artist = data['d']['song']['artists'][0]['name']
                 try:
@@ -428,7 +427,6 @@ class Music(commands.Cog):
                     songHeader = songTitle
                 embed = discord.Embed(title=':notes: ' + songHeader + ' :notes:')
                 await ctx.reply(embed=embed)
-                # embed.set_image(url=data['d']['song']['image'])
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
