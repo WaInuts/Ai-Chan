@@ -53,7 +53,10 @@ class AI(commands.Cog):
                 audio = silero_tts(text)
                 if not ctx.message.guild.voice_client:
                     await connect(ctx)
-                ctx.message.guild.voice_client.play(discord.FFmpegPCMAudio(audio))
+                if not ctx.message.guild.voice_client.is_playing:
+                    ctx.message.guild.voice_client.play(discord.FFmpegPCMAudio(audio))
+                else:
+                    print('Currently playing music or talking already, so I cannot talk!')
         else:
             await message.channel.send(f"Go to {kamasutra.mention} to speak to me {message.author.mention} :)")
 
