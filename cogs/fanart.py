@@ -1,15 +1,6 @@
 from discord.ext import commands
 import random
 import requests
-import discord
-import io
-
-
-from utils.voice import *
-
-ffmpeg_options = {
-    'options': ''
-}
 
 class FanArt(commands.Cog):
     def __init__(self, bot):
@@ -84,6 +75,8 @@ class FanArt(commands.Cog):
             return []
         return items
     
+    # Command to get anime fanart from zerochan.net
+    # ex. h.generate hu tao -> return random picture of Hu Tao
     @commands.command()
     async def generate(self, ctx, *, tag):
 
@@ -109,28 +102,6 @@ class FanArt(commands.Cog):
             await ctx.send(items[picID]['thumbnail'])
 
         return
-
-    @commands.command()
-    async def TTS(self, ctx, *, phrase):
-        vc = await self.joinvoiceMsg(ctx)
-        if vc is False: return
-        text_to_speech(phrase)
-        vc.play(discord.FFmpegPCMAudio('voice'))
-
-    @commands.command()
-    async def joinvoiceMsg(self, ctx):
-        voice_state = ctx.author.voice
-
-        if voice_state and ctx.voice_client is None:
-            channel = ctx.message.author.voice.channel
-            return await channel.connect()
-        elif ctx.voice_client is not None:
-            return ctx.voice_client
-            # Exiting if the user is already in a voice channel
-        else:
-            await ctx.send('<:PD_hutao:1187216515477540945> You aren\'t in a voice channel.')
-            return False
-            # Exiting if the user is not in a voice channel
         
 async def setup(bot):
     await bot.add_cog(FanArt(bot))

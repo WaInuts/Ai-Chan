@@ -19,6 +19,7 @@ pyvenv.cfg
 *.webm
 *.png
 test.wav
+.vscode/
 utils/config.json
 
 # confidential

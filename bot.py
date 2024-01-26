@@ -2,7 +2,6 @@ from discord.ext import commands
 import discord
 
 from utils import config
-import random
 import os
 from cogs import ai
 

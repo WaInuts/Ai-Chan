@@ -1,11 +1,7 @@
 import os
 import torch
-import requests
-import urllib.parse
-from pathlib import Path
 
 import speech_recognition as sr
-from pydub import AudioSegment
 
 # https://github.com/snakers4/silero-models#text-to-speech
 def silero_tts(tts, language, model, speaker):

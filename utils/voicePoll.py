@@ -94,13 +94,6 @@ async def on_listen_finish(sink: listening.AudioFileSink, exc=None, channel=None
     if exc is not None:
         raise exc
 
-
-@client.event
-async def on_ready():
-    print(f'Logged in as {client.user} (ID: {client.user.id})')
-    print('------')
-
-
 @client.tree.command(description="Join the vc you're in and begin recording.")
 @app_commands.describe(
     file_format=f"The file format to write the audio data to. Valid types: {', '.join(FILE_FORMATS.keys())}"

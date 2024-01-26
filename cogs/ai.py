@@ -1,9 +1,6 @@
 from discord.ext import commands
 import discord
-import logging
-import asyncio
-import re
-from characterai import PyAsyncCAI
+#from characterai import PyAsyncCAI
 from utils import config
 
 from utils.voice import *
@@ -16,10 +13,13 @@ class AI(commands.Cog):
     description = "To talk to Hu Tao, @Hu Tao with your message!"
     
     @commands.Cog.listener()
+    # Listener that allows bot to reply to user if they mention Hu Tao in their message.
+    # Bot will also join voice channel to verbally state message.
     async def on_message(self, message):
         
         if self.bot.user not in message.mentions: return
 
+        # Conditional to check if users (mellowtrippy) is in the right channel. (temporary)
         slimecraft_id = 812173836358254625
         kamasutra = self.bot.get_channel(1184754753473892373)
         if message.channel.id != slimecraft_id:
@@ -44,10 +44,11 @@ class AI(commands.Cog):
                     print(f'Hu Tao: {text}')
                 except:
                     await message.channel.send(
-                        f"*sarcastic* I couldn't quite hear you dear, can you repeat what you said?")
+                        f"`*sarcastic* I couldn't quite hear you dear, can you repeat what you said?`")
                     return
             await message.channel.send(f"{text}")
             
+            # If user is in voice channel, join VC and verbally state message.
             if message.author.voice:
                 audio = silero_tts(text)
                 if not ctx.message.guild.voice_client:

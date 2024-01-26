@@ -1,8 +1,5 @@
 
 from discord.ext import commands
-import discord
-from utils.keep_alive import keep_alive
-import os
 import asyncio
 from bot import Bot
 from cai import Cai
