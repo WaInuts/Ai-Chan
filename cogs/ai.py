@@ -56,6 +56,7 @@ class AI(commands.Cog):
                 if not ctx.message.guild.voice_client.is_playing:
                     ctx.message.guild.voice_client.play(discord.FFmpegPCMAudio(audio))
                 else:
+                    #TODO: Bot pauses music and plays audio? Queues Audio? 
                     print('Currently playing music or talking already, so I cannot talk!')
         else:
             await message.channel.send(f"Go to {kamasutra.mention} to speak to me {message.author.mention} :)")
