@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Use Dev Token or Production Token
-DEBUG = True
+DEBUG = os.getenv('DEBUG')
 
 # Prefix for commands on Discord
 prefix = "h."
@@ -14,7 +14,7 @@ prefix = "h."
 starting_activity = discord.Activity(type=discord.ActivityType.listening, name=' You... :-)')
 
 try:
-    if DEBUG == True:
+    if DEBUG == 'TRUE':
         DISCORD_TOKEN = os.getenv('DISCORD_TOKEN_DEV')
         # TODO: change to other character ai token for debugging
         CHARACTER_AI_TOKEN = os.getenv('CHARACTER_AI_TOKEN_DEV')
