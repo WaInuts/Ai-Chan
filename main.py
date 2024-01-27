@@ -1,10 +1,13 @@
 
 from discord.ext import commands
 import asyncio
+import sys
 from bot import Bot
 from cai import Cai
 from utils import config
 
+print(f'Using Python {sys.version}')
+print(f'{sys.platform}')
 
 async def main():
     cai = await Cai.setup()
