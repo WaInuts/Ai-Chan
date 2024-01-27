@@ -9,9 +9,6 @@ class System(commands.Cog):
     async def on_ready(self):
         print(f'Logged in as {self.bot.user} (ID: {self.bot.user.id})')
         print('------')
-    
-    # async def on_ready(self):
-    #     print('We have logged in as {0.user}'.format(self.bot))
 
     @commands.command(name='help', aliases=['helpmemommy'])
     async def help(self, ctx): 
