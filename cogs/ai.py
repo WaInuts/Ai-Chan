@@ -1,10 +1,7 @@
 from discord.ext import commands
-import discord
-#from characterai import PyAsyncCAI
 from utils import config
-print('ai.py...')
 from utils.voice import *
-print('Import Finished!')
+
 class AI(commands.Cog):
     def __init__(self, bot, cai):
         self.bot = bot

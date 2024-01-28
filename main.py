@@ -9,7 +9,7 @@ from utils import config
 # ! NEEDED FOR PYTORCH TO WORK ON UBUNTU SERVER (DISCLOUD)!
 # ! MUST BE PUT BEFORE "import torch"
 import os
-os.environ['OPENBLAS_NUM_THREADS'] = '4'
+os.environ['OPENBLAS_NUM_THREADS'] = '24'
 import torch
 
 
