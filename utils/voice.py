@@ -7,11 +7,11 @@ from discord.ext import commands
 import torch
 
 
-class VoiceConnectionError(commands.CommandError):
-    """Custom Exception class for connection errors."""
+# class VoiceConnectionError(commands.CommandError):
+#     """Custom Exception class for connection errors."""
 
-class InvalidVoiceChannel(VoiceConnectionError):
-    """Exception for cases of invalid Voice Channels."""
+# class InvalidVoiceChannel(VoiceConnectionError):
+#     """Exception for cases of invalid Voice Channels."""
 
 # https://github.com/snakers4/silero-models#text-to-speech
 # def silero_tts(text):
