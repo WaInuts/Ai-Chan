@@ -20,10 +20,5 @@ class Cai(PyAsyncCAI):
         print(chat)
         chat_id = chat['chats'][0]['chat_id']
         creator_id = chat['chats'][0]['creator_id']
-        # author = {
-        #     'author_id': chat['chats'][0]['creator_id'],
-        #     'is_human': True,
-        #     'name': 'boo'
-        # }
 
         return cls(client, chat_id, creator_id)

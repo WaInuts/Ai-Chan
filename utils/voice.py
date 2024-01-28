@@ -1,6 +1,9 @@
 
+# ! NEEDED FOR PYTORCH TO WORK ON UBUNTU SERVER (DISCLOUD)!
+# ! MUST BE PUT BEFORE "import torch"
+# https://stackoverflow.com/questions/52026652/openblas-blas-thread-init-pthread-create-resource-temporarily-unavailable
 import os
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '4'
 import asyncio
 
 import speech_recognition as sr
@@ -19,12 +22,9 @@ def silero_tts(text):
     language = "en"
     model = "v3_en"
     speaker = "en_21"
-    print('silero_tts')
     try:
-        print('Hi!')
         device = torch.device('cpu')
         torch.set_num_threads(4)
-        print('Goodbye!')
     except OSError as err:
         print("OS error:", err)
         return
