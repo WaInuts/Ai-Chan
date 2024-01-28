@@ -18,9 +18,9 @@ def silero_tts(text):
     model = "v3_en"
     speaker = "en_21"
 
-    device = torch.device('cpu')
     try:
         print('Hi!')
+        device = torch.device('cpu')
         torch.set_num_threads(4)
         print('Goodbye!')
     except OSError as err:
