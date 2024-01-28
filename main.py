@@ -6,9 +6,10 @@ import platform
 from bot import Bot
 from cai import Cai
 from utils import config
-import torch
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
+import torch
+
 
 print(f'Using Python {sys.version}')
 print(platform.system())
