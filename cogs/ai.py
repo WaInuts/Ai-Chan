@@ -2,9 +2,9 @@ from discord.ext import commands
 import discord
 #from characterai import PyAsyncCAI
 from utils import config
-
+print('ai.py...')
 from utils.voice import *
-
+print('Import Finished!')
 class AI(commands.Cog):
     def __init__(self, bot, cai):
         self.bot = bot
@@ -58,7 +58,7 @@ class AI(commands.Cog):
             #     else:
             #         #TODO: Bot pauses music and plays audio? Queues Audio? 
             #         print('Currently playing music or talking already, so I cannot talk!')
-            
+
         else:
             await message.channel.send(f"Go to {kamasutra.mention} to speak to me {message.author.mention} :)")
 

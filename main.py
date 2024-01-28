@@ -16,10 +16,14 @@ print(platform.machine())
 async def main():
     print('Main...')
     cai = await Cai.setup()
+    print('CAI...')
     bot = Bot(cai)
+    print('Bot...')
     async with bot:
       await bot.load_extensions()
+      print('Load_Extensions...')
       await bot.start(config.DISCORD_TOKEN)
+    print('Main Finished!')
   
 if __name__=="__main__":
   asyncio.run(main())
