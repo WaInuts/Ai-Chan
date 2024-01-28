@@ -1,3 +1,4 @@
+print('Voice')
 import os
 import asyncio
 
@@ -17,7 +18,7 @@ def silero_tts(text):
     language = "en"
     model = "v3_en"
     speaker = "en_21"
-
+    print('silero_tts')
     try:
         print('Hi!')
         device = torch.device('cpu')

@@ -14,6 +14,7 @@ print(platform.version())
 print(platform.machine())
 
 async def main():
+    print('Main...')
     cai = await Cai.setup()
     bot = Bot(cai)
     async with bot:
