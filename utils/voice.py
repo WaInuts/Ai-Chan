@@ -3,7 +3,7 @@
 # ! MUST BE PUT BEFORE "import torch"
 # https://stackoverflow.com/questions/52026652/openblas-blas-thread-init-pthread-create-resource-temporarily-unavailable
 import os
-os.environ['OPENBLAS_NUM_THREADS'] = '4'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import asyncio
 
 import speech_recognition as sr
@@ -24,7 +24,7 @@ def silero_tts(text):
     speaker = "en_21"
     try:
         device = torch.device('cpu')
-        torch.set_num_threads(4)
+        torch.set_num_threads(1)
     except OSError as err:
         print("OS error:", err)
         return
