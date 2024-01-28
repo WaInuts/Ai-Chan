@@ -6,12 +6,14 @@ import platform
 from bot import Bot
 from cai import Cai
 from utils import config
+import torch
 
 print(f'Using Python {sys.version}')
 print(platform.system())
 print(platform.release())
 print(platform.version())
 print(platform.machine())
+print("Number of cpu threads: {}".format(torch.get_num_threads()))
 
 async def main():
     print('Main...')

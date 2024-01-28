@@ -14,39 +14,39 @@ class InvalidVoiceChannel(VoiceConnectionError):
     """Exception for cases of invalid Voice Channels."""
 
 # https://github.com/snakers4/silero-models#text-to-speech
-def silero_tts(text):
-    language = "en"
-    model = "v3_en"
-    speaker = "en_21"
-    print('silero_tts')
-    try:
-        print('Hi!')
-        device = torch.device('cpu')
-        torch.set_num_threads(4)
-        print('Goodbye!')
-    except OSError as err:
-        print("OS error:", err)
-        return
-    except RuntimeError as err:
-        print('Failed to create Threads: ', err)
-        return
-    except Exception as err:
-        print(f"Unexpected {err=}, {type(err)=}")
-        return
-    local_file = 'model.pt'
+# def silero_tts(text):
+#     language = "en"
+#     model = "v3_en"
+#     speaker = "en_21"
+#     print('silero_tts')
+#     try:
+#         print('Hi!')
+#         device = torch.device('cpu')
+#         torch.set_num_threads(4)
+#         print('Goodbye!')
+#     except OSError as err:
+#         print("OS error:", err)
+#         return
+#     except RuntimeError as err:
+#         print('Failed to create Threads: ', err)
+#         return
+#     except Exception as err:
+#         print(f"Unexpected {err=}, {type(err)=}")
+#         return
+#     local_file = 'model.pt'
 
-    if not os.path.isfile(local_file):
-        torch.hub.download_url_to_file(f'https://models.silero.ai/models/tts/{language}/{model}.pt',
-                                    local_file)  
+#     if not os.path.isfile(local_file):
+#         torch.hub.download_url_to_file(f'https://models.silero.ai/models/tts/{language}/{model}.pt',
+#                                     local_file)  
 
-    model = torch.package.PackageImporter(local_file).load_pickle("tts_models", "model")
-    model.to(device)
+#     model = torch.package.PackageImporter(local_file).load_pickle("tts_models", "model")
+#     model.to(device)
 
-    sample_rate = 48000
+#     sample_rate = 48000
 
-    return model.save_wav(text=text,
-                                speaker=speaker,
-                                sample_rate=sample_rate)
+#     return model.save_wav(text=text,
+#                                 speaker=speaker,
+#                                 sample_rate=sample_rate)
 
 def get_text(audioFilePath):
     r = sr.Recognizer()
