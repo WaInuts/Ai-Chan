@@ -58,24 +58,24 @@ class InvalidVoiceChannel(VoiceConnectionError):
 #         except:
 #             print('Sorry could not recognize voice')
 
-async def connect(ctx):
-    try:
-        channel = ctx.author.voice.channel
-    except AttributeError:
-        raise InvalidVoiceChannel('No channel to join.')
-    vc = ctx.voice_client
-    if vc:
-        if vc.channel.id == channel.id:
-            return vc
-        try:
-            await vc.move_to(channel)
-            return vc
-        except asyncio.TimeoutError:
-            raise VoiceConnectionError(f'Moving to channel: <{channel}> timed out.')
-    else:
-        try:
-            await channel.connect()
-            return vc
-        except asyncio.TimeoutError:
-            raise VoiceConnectionError(f'Connecting to channel: <{channel}> timed out.')
+# async def connect(ctx):
+#     try:
+#         channel = ctx.author.voice.channel
+#     except AttributeError:
+#         raise InvalidVoiceChannel('No channel to join.')
+#     vc = ctx.voice_client
+#     if vc:
+#         if vc.channel.id == channel.id:
+#             return vc
+#         try:
+#             await vc.move_to(channel)
+#             return vc
+#         except asyncio.TimeoutError:
+#             raise VoiceConnectionError(f'Moving to channel: <{channel}> timed out.')
+#     else:
+#         try:
+#             await channel.connect()
+#             return vc
+#         except asyncio.TimeoutError:
+#             raise VoiceConnectionError(f'Connecting to channel: <{channel}> timed out.')
 
