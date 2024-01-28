@@ -1,10 +1,10 @@
-print('Voice')
-import os
-import asyncio
+# print('Voice')
+# import os
+# import asyncio
 
-import speech_recognition as sr
-from discord.ext import commands
-import torch
+# import speech_recognition as sr
+# from discord.ext import commands
+# import torch
 
 
 # class VoiceConnectionError(commands.CommandError):
