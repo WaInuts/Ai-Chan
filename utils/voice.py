@@ -5,6 +5,7 @@
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
 import asyncio
 
 import speech_recognition as sr
@@ -27,7 +28,7 @@ def silero_tts(text):
         print('SET DEVICE FOR TORCH')
         device = torch.device('cpu')
         print('SET NUM OF THREADS')
-        torch.set_num_threads(1)
+        #torch.set_num_threads(1)
         local_file = 'model.pt'
         print('OS PATH')
         if not os.path.isfile(local_file):
