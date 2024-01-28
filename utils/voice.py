@@ -48,15 +48,15 @@ class InvalidVoiceChannel(VoiceConnectionError):
 #                                 speaker=speaker,
 #                                 sample_rate=sample_rate)
 
-def get_text(audioFilePath):
-    r = sr.Recognizer()
-    with sr.AudioFile(audioFilePath) as source:
-        audioFilePath = r.record(source)
-        try:
-            return r.recognize_google(audioFilePath, language='en-US')
-            print('Decoded text from Audio is {}'.format(recognized_text))
-        except:
-            print('Sorry could not recognize voice')
+# def get_text(audioFilePath):
+#     r = sr.Recognizer()
+#     with sr.AudioFile(audioFilePath) as source:
+#         audioFilePath = r.record(source)
+#         try:
+#             return r.recognize_google(audioFilePath, language='en-US')
+#             print('Decoded text from Audio is {}'.format(recognized_text))
+#         except:
+#             print('Sorry could not recognize voice')
 
 async def connect(ctx):
     try:
