@@ -3,7 +3,7 @@
 # ! MUST BE PUT BEFORE "import torch"
 # https://stackoverflow.com/questions/52026652/openblas-blas-thread-init-pthread-create-resource-temporarily-unavailable
 import os
-os.environ['OPENBLAS_NUM_THREADS'] = '24'
+os.environ['OPENBLAS_NUM_THREADS'] = '4'
 import asyncio
 
 import speech_recognition as sr
