@@ -42,7 +42,7 @@ class AI(commands.Cog):
                     print(f'Hu Tao: {text}')
                 except:
                     await message.channel.send(
-                        f"`*sarcastic* I couldn't quite hear you dear, can you repeat what you said?`")
+                        f"Filtered! :3")
                     return
             await message.channel.send(f"{text}")
             
