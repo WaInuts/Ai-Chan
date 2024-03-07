@@ -1,4 +1,5 @@
 from discord.ext import commands
+from utils import logging
 import random
 import requests
 
@@ -33,19 +34,19 @@ class FanArt(commands.Cog):
             r = requests.get(f'https://www.zerochan.net/{tag}?p=1&l=25&s=fav&json',headers=headers, timeout=5)
             r.raise_for_status()
         except requests.exceptions.HTTPError as err:
-            print('HTTP Error: ', err)
+            logging.error(f'HTTP Error - {err}', 'Zerochan.net')
             return []
-        except requests.exceptions.ReadTimeout:
+        except requests.exceptions.ReadTimeout as err:
             # Maybe set up for a retry, or continue in a retry loop
-            print('Timeout')
+            logging.error(f'Timeout - {err}', 'Zerochan.net')
             return []
-        except requests.exceptions.TooManyRedirects:
+        except requests.exceptions.TooManyRedirects as err:
             # Tell the user their URL was bad and try a different one
-            print('TooManyRedirects')
+            logging.error(f'TooManyRedirects - {err}', 'Zerochan.net')
             return []
         except requests.exceptions.RequestException as err:
             # catastrophic error. bail.
-            print('Exception Occured: ', err)
+            logging.error(err, 'Zerochan.net')
             return []
         
         try:
@@ -59,19 +60,19 @@ class FanArt(commands.Cog):
             if tries <= 1:
                 content = str(r.content)
                 tag = self._decodeHTMLContent(content)
-                print(f"We got HTML! New Tag: {tag}")
+                logging.info(f"We got HTML! New Tag: {tag}", 'Zerochan.net')
                 tries += 1
                 items = await self._getPictures(ctx, tag, tries)
                 return items
             # If decode fails, exit.
             else:
-                print('tries > 1')
+                logging.warning('We keep receiving HTML, bail.', 'Zerochan.net')
                 return []
-        except requests.exceptions.InvalidJSONError | TypeError:
-            print("Invalid JSON Error.")
+        except requests.exceptions.InvalidJSONError | TypeError as err:
+            logging.error(f"Invalid JSON Error - {err}", 'Zerochan.net')
             return []
         except requests.exceptions.RequestException as err:
-            print(f'Exception Occured: {err}')
+            logging.error(err, 'Zerochan.net')
             return []
         return items
     
@@ -90,7 +91,7 @@ class FanArt(commands.Cog):
             case 'queen':
                 tag = 'Hatsune+Miku'
         
-        print(f"User Entered: {tag}")
+        logging.info(f"User Entered: {tag}", 'Zerochan.net')
 
         items = await self._getPictures(ctx, tag)
 
@@ -98,7 +99,7 @@ class FanArt(commands.Cog):
             await ctx.send(f"No Pictures Found! <:gi_hutao_notlikethis:1187215478083563662>\n\nTry another tag!")
         else:
             picID = random.randint(0, len(items) - 1)
-            print(f"Index of chosen picture: {picID}")
+            logging.info(f"Index of chosen picture: {picID}", 'Zerochan.net')
             await ctx.send(items[picID]['thumbnail'])
 
         return

@@ -22,7 +22,7 @@ class Cai(PyAsyncCAI):
         try:
             client = PyAsyncCAI(config.CHARACTER_AI_TOKEN)
             chat = await client.chat2.get_chat('U3dJdreV9rrvUiAnILMauI-oNH838a8E_kEYfOFPalE')
-            print(chat)
+            logging.info(f'{Style.BRIGHT}Chat JSON info:{Style.RESET_ALL}\n\n{chat}', 'CharacterAI')
             chat_id = chat['chats'][0]['chat_id']
             creator_id = chat['chats'][0]['creator_id']
         except Exception as err:

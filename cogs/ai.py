@@ -30,7 +30,7 @@ class AI(commands.Cog):
 
             display_name = ctx.message.author.display_name
             author_text = message.clean_content
-            print(f'Message: {author_text}')
+            logging.info(f'User Message: {author_text}', 'CharacterAI')
             author = {
                 'author_id': self.cai.creator_id,
                 'is_human': True,
@@ -44,7 +44,7 @@ class AI(commands.Cog):
                                                         self.cai.chat_id,
                                                         author_text, author)   
                     text = data['turn']['candidates'][0]['raw_content']
-                    print(f'Hu Tao: {text}')
+                    logging.info(f'Hu Tao: {text}', 'CharacterAI')
                 except AttributeError as err:
                     logging.error(f'CharacterAI Library is not working! {err}', "CharacterAi")
                     embed = discord.Embed()

@@ -1,5 +1,7 @@
 from discord.ext import commands
 import discord
+from utils import logging
+from colorama import Style
 
 class System(commands.Cog):
     def __init__(self, bot):
@@ -7,7 +9,7 @@ class System(commands.Cog):
     
     @commands.Cog.listener()
     async def on_ready(self):
-        print(f'Logged in as {self.bot.user} (ID: {self.bot.user.id})')
+        logging.system(f'{Style.BRIGHT}Logged in as {self.bot.user}{Style.RESET_ALL} (ID: {self.bot.user.id})', 'discord.client')
         print('------')
 
     @commands.hybrid_command(name='help', aliases=['helpmemommy'])
