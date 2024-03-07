@@ -10,7 +10,7 @@ class System(commands.Cog):
         print(f'Logged in as {self.bot.user} (ID: {self.bot.user.id})')
         print('------')
 
-    @commands.command(name='help', aliases=['helpmemommy'])
+    @commands.hybrid_command(name='help', aliases=['helpmemommy'])
     async def help(self, ctx): 
         title = 'Here are my commands!'
         icon_url = 'https://imgur.com/WvLDLj0.png'
@@ -53,7 +53,7 @@ class System(commands.Cog):
         helptext+="```"
         await ctx.send(embed=embed)
 
-    @commands.command(name='hello', aliases=['hi', 'yo', 'hey', 'konichiwa'])
+    @commands.hybrid_command(name='hello', aliases=['hi', 'yo', 'hey', 'konichiwa'])
     async def hello(self, ctx):
         embed = discord.Embed(title=f'**Hello {ctx.message.author}!**')
         embed.set_image(url='https://imgur.com/SPbKVFT.png')
