@@ -1,7 +1,6 @@
 from discord.ext import commands
 import discord
-import traceback
-import sys
+
 from utils import config
 from utils import logging
 from utils.voice import *
@@ -39,12 +38,12 @@ class AI(commands.Cog):
 
             async with message.channel.typing():
                 try:
-                    async with self.cai.client.connect(config.CHARACTER_AI_TOKEN) as chat2:
-                        data = await chat2.send_message(self.cai.char,
+                    async with self.cai.client.connect('14b9f6566f4b4932ec80522e4ec99a77240ee717') as chat2:
+                        data = await chat2.send_message(self.cai.chara_id,
                                                         self.cai.chat_id,
-                                                        author_text, author)   
-                    text = data['turn']['candidates'][0]['raw_content']
-                    logging.info(f'Hu Tao: {text}', 'CharacterAI')
+                                                        author_text, author, Return_name=False)   
+                    #text = data['turn']['candidates'][0]['raw_content']
+                    logging.info(f'Hu Tao: {data}', 'CharacterAI')
                 except AttributeError as err:
                     logging.error(f'CharacterAI Library is not working! {err}', "CharacterAi")
                     embed = discord.Embed()
@@ -56,7 +55,7 @@ class AI(commands.Cog):
                     await message.channel.send(
                         f"Filtered! :3")
                     return
-            await message.channel.send(f"{text}")
+            await message.channel.send(f"{data}")
             
             # If user is in voice channel, join VC and verbally state message.
             # if message.author.voice:

@@ -1,6 +1,6 @@
 
 from discord.ext import commands
-import asyncio
+import asyncio as ass
 from bot import Bot
 from cai import Cai
 from colorama import init as colorama_init
@@ -25,6 +25,6 @@ async def main():
     await bot.start(config.DISCORD_TOKEN)
   
 if __name__=="__main__":
-  asyncio.run(main())
+  ass.run(main())
 
 

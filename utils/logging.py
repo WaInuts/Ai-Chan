@@ -20,11 +20,11 @@ def template(*, message_type="", color_of_type=Fore.BLUE, content="", dependency
     date_time = f"{Style.BRIGHT}{dt_string}{Style.RESET_ALL}"
     print(f"{date_time} {Style.BRIGHT}{color_of_type}{message_type}{Style.RESET_ALL} {Fore.MAGENTA}{dependency}{Style.RESET_ALL} {content}")
 
-def error(error, dependency="", *args):
-    template(message_type="ERROR    ", color_of_type=Fore.RED, content=f"{error}\n\n{Fore.RED}{traceback.format_exc()}", dependency=dependency)
-
 def warning(warning, dependency="", *args):
     template(message_type="WARNING  ", color_of_type=Fore.YELLOW, content=warning, dependency=dependency)
+
+def error(error, dependency="", *args):
+    template(message_type="ERROR    ", color_of_type=Fore.RED, content=f"{error}\n\n{Fore.RED}{traceback.format_exc()}", dependency=dependency)
 
 def info(info, dependency="", *args):
     template(message_type="INFO     ", color_of_type=Fore.BLUE, content=info, dependency=dependency)

@@ -18,6 +18,7 @@ try:
         DISCORD_TOKEN = os.getenv('DISCORD_TOKEN_DEV')
         # TODO: change to other character ai token for debugging
         CHARACTER_AI_TOKEN = os.getenv('CHARACTER_AI_TOKEN_DEV')
+        GUILDS_ID = discord.Object(id=int(os.getenv("GUILD")))
     else: 
         DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
         CHARACTER_AI_TOKEN = os.getenv('CHARACTER_AI_TOKEN')

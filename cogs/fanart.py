@@ -8,7 +8,7 @@ class FanArt(commands.Cog):
         self.bot = bot
 
     description = '`Request Anime Art of your favorite character! Type "h.generate [tag]" to recieve a picture. For example, "h.generate hu tao" will give you a picture of me!` <:hutao_owo:1187215501974319185>'
-    
+    description_short = description[1:46]
     # Zerochan.net will sometimes return the front end HTML code instead of a JSON.
     # This function is used to decode that HTML and find the appropriate tag.
     def _decodeHTMLContent(self, content):
@@ -78,9 +78,15 @@ class FanArt(commands.Cog):
     
     # Command to get anime fanart from zerochan.net
     # ex. h.generate hu tao -> return random picture of Hu Tao
-    @commands.command()
-    async def generate(self, ctx, *, tag):
+    @commands.hybrid_command(name="generate", description=description_short)
+    async def generate(self, ctx, *, tag: str):
+        """Request Anime Art of your favorite character!
 
+        Parameters
+        -----------
+        tag: str
+            Who do you want a picture of?
+        """
         items = []
 
         match tag:
