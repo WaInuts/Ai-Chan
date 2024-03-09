@@ -23,7 +23,7 @@ async def main():
   async with bot:
     await bot.load_extensions()
     await bot.start(config.DISCORD_TOKEN)
-  
+    
 if __name__=="__main__":
   ass.run(main())
 

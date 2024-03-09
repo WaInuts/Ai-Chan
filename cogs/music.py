@@ -1,4 +1,4 @@
-from discord.ext import commands
+from discord.ext import tasks, commands
 import discord
 
 import sys
@@ -11,9 +11,12 @@ from async_timeout import timeout
 from functools import partial
 import yt_dlp as youtube_dl
 from utils.helpers import send_pings
+from utils import logging
 
 from utils.config import LISTEN_MOE
 
+#TODO: Fix bug where second song in queue stops playing midway/randomly? (need to do further testing)
+#TODO: Add Spotify Support
 ytdlopts = {
     'format': 'bestaudio/best',
     'outtmpl': 'downloads/%(extractor)s-%(id)s-%(title)s.%(ext)s',
@@ -125,6 +128,7 @@ class MusicPlayer(commands.Cog):
         self.current = None
 
         ctx.bot.loop.create_task(self.player_loop())
+        # ctx.bot.loop.create_task(self.radio_loop())
 
     async def player_loop(self):
         """Our main player loop."""
@@ -155,7 +159,7 @@ class MusicPlayer(commands.Cog):
 
             self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
             self.np = await self._channel.send(f'**Now Playing:** `{source.title}` requested by '
-                                               f'`{source.requester}`')
+                                               f'`{source.requester.display_name}`')
             await self.next.wait()
 
             # Make sure the FFmpeg process is cleaned up.
@@ -173,6 +177,47 @@ class MusicPlayer(commands.Cog):
         return self.bot.loop.create_task(self._cog.cleanup(guild))
 
 
+# class RadioPlayer(commands.Cog):
+#     """A class which is assigned to each guild using the bot for the Radio.
+#     This class implements a loop, which allows for different guilds to listen to different radios
+#     simultaneously.
+#     When the bot disconnects from the Voice it's instance will be destroyed.
+#     """
+
+#     def __init__(self, ctx):
+#             self.bot = ctx.bot
+#             self._guild = ctx.guild
+#             self._channel = ctx.channel
+#             self._cog = ctx.cog
+
+#             self.queue = asyncio.Queue()
+#             self.next = asyncio.Event()
+
+#             self.np = None  # Now playing message
+#             self.volume = .5
+#             self.current = None
+
+#             ctx.bot.loop.create_task(self.radio_loop())
+
+#     async def radio_loop(self):
+#         """Our main radio loop"""
+#         await self.bot.wait_until_ready()
+
+#         while not self.bot.is_closed():
+#             self.next.clear() # Block from RePlaying
+
+#         try:
+#             # Wait for the next song. If we timeout cancel the player and disconnect...
+#             async with timeout(300):  # 5 minutes...
+#                 source = await LISTEN_MOE
+#         except asyncio.TimeoutError:
+#             return self.destroy(self._guild)
+
+#         source.volume = self.volume
+#         self.current = source
+#         self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
+#         self.np = 
+    
 class Music(commands.Cog):
     """Music related commands."""
 
@@ -224,8 +269,9 @@ class Music(commands.Cog):
 
         return player
 
-    @commands.command(name='connect', aliases=['join'])
+    @commands.hybrid_command(name='connect', aliases=['join'])
     async def connect_(self, ctx):
+        """Invite me to your voice channel!"""
         try:
             channel = ctx.author.voice.channel
         except AttributeError:
@@ -250,8 +296,16 @@ class Music(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='play', aliases=['sing', 'p'])
+    # TODO: Add Optional Parameter to select platform (once other platforms are added)
+    @commands.hybrid_command(name='play', aliases=['sing', 'p'])
     async def play_(self, ctx, *, search: str):
+        """Look up a song from one of our supported platforms!
+
+        Parameters
+        -----------
+        search: str
+            Can be a link or a search term
+        """
         await ctx.typing()
 
         vc = ctx.voice_client
@@ -269,7 +323,7 @@ class Music(commands.Cog):
 
         # Tell user the song's position in queue.
         queue_size = player.queue.qsize()
-        embed = discord.Embed(title="Added to Queue! <:HuTao_GotThis:1187259987291021352> ", 
+        embed = discord.Embed(title="Added to Queue! <:hutaobootao:1187255522148233278>", 
                             description=f"{source['title']}\n `{source['duration_string']}`")
         embed.set_thumbnail(url='{}'.format(source['thumbnail']))
         embed.set_footer(text='Will play soon!'if queue_size<=1 else f'Position #{queue_size}', icon_url='https://imgur.com/PKi66Gs.png')
@@ -277,7 +331,7 @@ class Music(commands.Cog):
         await ctx.send(embed=embed)
 
 
-    @commands.command(name='pause')
+    @commands.hybrid_command(name='pause')
     async def pause_(self, ctx):
         """Pause the currently playing song."""
         vc = ctx.voice_client
@@ -288,9 +342,9 @@ class Music(commands.Cog):
             return
 
         vc.pause()
-        await ctx.send(f'**`{ctx.author}`**: Paused the song!')
+        await ctx.send(f'**`{ctx.author.display_name}`**: Paused the song!')
 
-    @commands.command(name='resume', aliases=['unpause'])
+    @commands.hybrid_command(name='resume', aliases=['unpause'])
     async def resume_(self, ctx):
         """Resume the currently paused song."""
         vc = ctx.voice_client
@@ -301,9 +355,9 @@ class Music(commands.Cog):
             return
 
         vc.resume()
-        await ctx.send(f'**`{ctx.author}`**: Resumed the song!')
+        await ctx.send(f'**`{ctx.author.display_name}`**: Resumed the song!')
 
-    @commands.command(name='skip')
+    @commands.hybrid_command(name='skip')
     async def skip_(self, ctx):
         """Skip the song."""
         vc = ctx.voice_client
@@ -317,9 +371,9 @@ class Music(commands.Cog):
             return
 
         vc.stop()
-        await ctx.send(f'**`{ctx.author}`**: Skipped the song!')
+        await ctx.send(f'**`{ctx.author.display_name}`**: Skipped the song!')
 
-    @commands.command(name='queue', aliases=['q', 'playlist'])
+    @commands.hybrid_command(name='queue', aliases=['q', 'playlist'])
     async def queue_info(self, ctx):
         """Retrieve a basic queue of upcoming songs."""
         vc = ctx.voice_client
@@ -339,7 +393,7 @@ class Music(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name='now_playing', aliases=['np', 'current', 'currentsong', 'playing'])
+    @commands.hybrid_command(name='now_playing', aliases=['np', 'current', 'currentsong', 'playing'])
     async def now_playing_(self, ctx):
         """Display information about the currently playing song."""
         vc = ctx.voice_client
@@ -358,9 +412,9 @@ class Music(commands.Cog):
             pass
 
         player.np = await ctx.send(f'**Now Playing:** `{vc.source.title}` '
-                                   f'requested by `{vc.source.requester}`')
+                                   f'requested by `{vc.source.requester.display_name}`')
 
-    @commands.command(name='volume', aliases=['vol'])
+    @commands.hybrid_command(name='volume', aliases=['vol'])
     async def change_volume(self, ctx, *, vol: float):
         """Change the player volume.
         Parameters
@@ -383,12 +437,81 @@ class Music(commands.Cog):
 
         player.volume = vol / 100
         embed = discord.Embed(title="Volume Message",
-        description=f'The Volume Was Changed By **{ctx.author.name}**')
+        description=f'The Volume Was Changed By **{ctx.author.display_name}**')
         embed.add_field(name="Current Volume", value=vol, inline=True)
         await ctx.send(embed=embed)
         # await ctx.send(f'**`{ctx.author}`**: Set the volume to **{vol}%**')
 
-    @commands.command(name='stop', aliases=['leave'])
+    # TODO: Make Command have parameter to choose type of radio, ex. ./radio jp -> weeb music
+    # TODO: Add JP as a choice (look at discordpy slash commands documentation)
+    @commands.hybrid_command(name="radio")
+    async def start_radio(self, ctx):
+        """Radio that plays Japanese Pop Music (Moe) 24/7."""
+        
+        # Connect to Voice and start playing music from listen.moe
+        voice_channel = ctx.voice_client
+        
+        if not voice_channel:
+            await ctx.invoke(self.connect_)
+            voice_channel = ctx.voice_client
+
+        radio = self.bot.loop.create_task(self.radio_loop(ctx, voice_channel))
+        # Connect to listen.moe with websocket to keep recieving song data.
+        song_data = self.bot.loop.create_task(self.song_data_loop(ctx))
+
+        await radio
+        await song_data
+
+    async def song_data_loop(self, ctx):
+        """Coroutine that uses WebSockets to receive song data from listen.moe"""
+        url = 'wss://listen.moe/gateway_v2'
+        async with websockets.connect(url) as websocket:
+            while True:
+                data = json.loads(await websocket.recv())
+                if data['op'] == 0:
+                    heartbeat = data['d']['heartbeat'] / 1000
+                    self.bot.loop.create_task(send_pings(websocket, heartbeat))
+                    # logging.info(f"{len(asyncio.all_tasks())}")
+                elif data['op'] == 1:
+                    await self._send_song_data(ctx, data)
+                
+    async def _send_song_data(self, ctx, data):
+        """Gets songtitle and artist from JSON response."""
+        songTitle = data['d']['song']['title']
+        artist = data['d']['song']['artists'][0]['name']
+        try:
+            songHeader = songTitle + ' by ' + artist
+        except:
+            songHeader = songTitle
+        logging.info(f'Radio Now Playing: {songHeader}', 'listen.moe')
+        embed = discord.Embed(title=':notes: ' + songHeader + ' :notes:')
+        await ctx.reply(embed=embed)
+        
+    async def radio_loop(self, ctx, voice_channel):
+        """Coroutine that plays music from listen.moe through Discord's voice client"""
+        await self.play_radio(ctx, voice_channel)
+
+    # TODO: Fix Radio
+    def play_radio(self, ctx, voice_channel):
+        """Recursive function that plays next song after current one ends in radio."""
+        voice_channel.play(discord.FFmpegPCMAudio(source=LISTEN_MOE, **ffmpegopts), after=lambda e: self.bot.loop.call_soon_threadsafe(self.play_radio(ctx, voice_channel)))
+
+    # # TODO: Remove this and combine functionality with ./nowplaying command
+    # @commands.hybrid_command(name="np_radio")
+    # async def get_radio_song(self, ctx):
+    #     """Get currently playing song from player"""
+    #     url = 'wss://listen.moe/gateway_v2'
+    #     ws = await websockets.connect(url)
+    #     data = json.loads(await ws.recv())
+    #     loop = asyncio.get_event_loop()
+
+    # @tasks.loop(minutes=0.5)
+    # async def np_radio_loop(self, ctx, msg):
+    #     songHeader = await ctx.invoke(self.get_radio_song)
+    #     await msg.edit(content=songHeader)
+
+
+    @commands.hybrid_command(name='stop', aliases=['leave'])
     async def stop_(self, ctx):
         """Stop the currently playing song and destroy the player.
         !Warning!
@@ -399,35 +522,14 @@ class Music(commands.Cog):
         if not vc or not vc.is_connected():
             return await ctx.send('I am not currently playing anything!')
 
-        await self.cleanup(ctx.guild)
+        # If Radio is Running, kill it.
+        if self.np_radio_loop.is_running():
+            self.np_radio_loop.cancel()
 
-    @commands.command()
-    async def radio_loop(self, ctx):
-        voice_channel = ctx.message.guild.voice_client
-        voice_channel.play(discord.FFmpegPCMAudio(source=LISTEN_MOE), after=lambda e: asyncio.run(self.radio_loop(ctx)))
-    
-    @commands.command()
-    async def radio_song(self, ctx):
-        url = 'wss://listen.moe/gateway_v2'
-        ws = await websockets.connect(url)
-        data = json.loads(await ws.recv())
-        loop = asyncio.get_event_loop()
-        
-        while True:
-            data = json.loads(await ws.recv())
-            
-            if data['op'] == 0:
-                heartbeat = data['d']['heartbeat'] / 1000
-                loop.create_task(send_pings(ws, heartbeat))
-            elif data['op'] == 1:
-                songTitle = data['d']['song']['title']
-                artist = data['d']['song']['artists'][0]['name']
-                try:
-                    songHeader = songTitle + ' by ' + artist
-                except:
-                    songHeader = songTitle
-                embed = discord.Embed(title=':notes: ' + songHeader + ' :notes:')
-                await ctx.reply(embed=embed)
+        embed = discord.Embed(description='**Disconnected From Voice Channel!**')
+        await ctx.send(embed=embed)
+        await vc.disconnect()
+        await self.cleanup(ctx.guild)
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
