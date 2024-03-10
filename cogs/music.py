@@ -448,20 +448,36 @@ class Music(commands.Cog):
     async def start_radio(self, ctx):
         """Radio that plays Japanese Pop Music (Moe) 24/7."""
         
-        # Connect to Voice and start playing music from listen.moe
+        _next = asyncio.Event() # 
         voice_channel = ctx.voice_client
         
         if not voice_channel:
             await ctx.invoke(self.connect_)
             voice_channel = ctx.voice_client
 
-        radio = self.bot.loop.create_task(self.radio_loop(ctx, voice_channel))
-        # Connect to listen.moe with websocket to keep recieving song data.
-        song_data = self.bot.loop.create_task(self.song_data_loop(ctx))
+        radio = self.bot.loop.create_task(self.radio_loop(ctx, _next))
+        song_data = self.bot.loop.create_task(self.song_data_loop(ctx)) # Connect to listen.moe with websocket to keep recieving song data.
 
         await radio
         await song_data
 
+    async def radio_loop(self, ctx, _next):
+        """Coroutine that plays music from listen.moe through Discord's voice client"""
+        await self.bot.wait_until_ready()
+
+        while not self.bot.is_closed():
+            _next.clear()
+
+            source = discord.FFmpegOpusAudio(source=LISTEN_MOE, **ffmpegopts)
+            source.volume = .5
+
+            ctx.guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(_next.set))
+            await _next.wait()
+
+            # Make sure the FFmpeg process is cleaned up.
+            source.cleanup()
+
+        # self.play_radio(ctx, voice_channel)
     async def song_data_loop(self, ctx):
         """Coroutine that uses WebSockets to receive song data from listen.moe"""
         url = 'wss://listen.moe/gateway_v2'
@@ -485,31 +501,7 @@ class Music(commands.Cog):
             songHeader = songTitle
         logging.info(f'Radio Now Playing: {songHeader}', 'listen.moe')
         embed = discord.Embed(title=':notes: ' + songHeader + ' :notes:')
-        await ctx.reply(embed=embed)
-        
-    async def radio_loop(self, ctx, voice_channel):
-        """Coroutine that plays music from listen.moe through Discord's voice client"""
-        await self.play_radio(ctx, voice_channel)
-
-    # TODO: Fix Radio
-    def play_radio(self, ctx, voice_channel):
-        """Recursive function that plays next song after current one ends in radio."""
-        voice_channel.play(discord.FFmpegPCMAudio(source=LISTEN_MOE, **ffmpegopts), after=lambda e: self.bot.loop.call_soon_threadsafe(self.play_radio(ctx, voice_channel)))
-
-    # # TODO: Remove this and combine functionality with ./nowplaying command
-    # @commands.hybrid_command(name="np_radio")
-    # async def get_radio_song(self, ctx):
-    #     """Get currently playing song from player"""
-    #     url = 'wss://listen.moe/gateway_v2'
-    #     ws = await websockets.connect(url)
-    #     data = json.loads(await ws.recv())
-    #     loop = asyncio.get_event_loop()
-
-    # @tasks.loop(minutes=0.5)
-    # async def np_radio_loop(self, ctx, msg):
-    #     songHeader = await ctx.invoke(self.get_radio_song)
-    #     await msg.edit(content=songHeader)
-
+        await ctx.send(embed=embed)
 
     @commands.hybrid_command(name='stop', aliases=['leave'])
     async def stop_(self, ctx):

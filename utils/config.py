@@ -26,4 +26,4 @@ except:
     DISCORD_TOKEN = input("Enter Discord bot OAuth2: ")
     CHARACTER_AI_TOKEN = input("Enter Character.ai user OAuth: ")
 
-LISTEN_MOE = 'https://listen.moe/stream'
+LISTEN_MOE = 'https://listen.moe/opus'
