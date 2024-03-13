@@ -10,6 +10,7 @@ import json
 from async_timeout import timeout
 from functools import partial
 import yt_dlp as youtube_dl
+from collections import deque
 from utils.helpers import send_pings, build_url
 from utils import logging
 
@@ -129,8 +130,10 @@ class MusicPlayer(commands.Cog):
         self.next = asyncio.Event()
 
         self.radio = radio
-        self.np = None  # Now playing message
-        self.np_radio = None
+        self.np_radio = None # Now playing message
+        self.song_history = deque([], 20) # History of songs played
+
+        self.np = None # Now playing message
         self.volume = .5
         self.current = None
 
@@ -215,19 +218,35 @@ class MusicPlayer(commands.Cog):
 
     async def set_now_playing(self, data):
         """Gets songtitle and artist an sets them for class from JSON response."""
+        song_data = {
+            'title' : data['d']['song']['title'],
+            'artist' : data['d']['song']['artists'][0]['name'],
+            'image' : data['d']['song']['artists'][0]['image'],
+            'sources' : data['d']['song']['sources'],
+            'duration' : data['d']['song']['duration']
+        }
+
         songTitle = data['d']['song']['title']
         artist = data['d']['song']['artists'][0]['name']
         image = data['d']['song']['artists'][0]['image']
         sources = data['d']['song']['sources']
-        logging.info(sources)
+
+        # Create URL for Song
         try:
-            songHeader = songTitle + ' by ' + artist
+            songHeader = song_data['title'] + ' by ' + song_data['artist']
         except:
-            songHeader = songTitle
-            artist = ''
+            songHeader = song_data['title']
+            song_data['artist'] = ''
+
         logging.info(f'Radio Now Playing: {songHeader}', 'listen.moe')
         url = build_url('https://www.google.com', 'search', {'q' : songHeader})
-        embed = discord.Embed(title=f':notes: {songTitle} :notes:', description=f"by {artist}\n\n[Song Link]({url})")
+        song_data['url'] = url
+
+        # Push data to history
+        self.song_history.appendleft(song_data)
+        logging.info(self.song_history)
+
+        embed = discord.Embed(title=f":notes: {song_data['title']} :notes:", description=f"by {song_data['artist']}\n\n[Song Link]({song_data['url']})")
         embed.set_author(name="JP Radio")
         embed.set_footer(text="listen.moe (c) 2024")
         self.np = await self._channel.send(embed=embed)
@@ -365,6 +384,16 @@ class Music(commands.Cog):
 
         return player
 
+    def get_music_player(self, ctx):
+        """Retrieve the guild player."""
+        try:
+            player = self.players[ctx.guild.id]
+
+        except KeyError:
+            logging.warning('No player active!', 'discord')
+
+        return player
+
     @commands.hybrid_command(name='connect', aliases=['join'])
     async def connect_(self, ctx):
         """Invite me to your voice channel!"""
@@ -486,6 +515,24 @@ class Music(commands.Cog):
 
         fmt = '\n'.join(f'**{postiion+1}:** **`{_["title"]}`**' for postiion, _ in enumerate(upcoming))
         embed = discord.Embed(title=f'Upcoming - Next {len(upcoming)}', description=fmt)
+
+        await ctx.send(embed=embed)
+
+    @commands.hybrid_command(name='history', aliases=['h', 'radio_history'])
+    async def history(self, ctx):
+        """Retrieve a deque of the last twenty played songs on the radio."""
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_connected():
+            return await ctx.send('I am not currently connected to voice!')
+
+        player = self.get_music_player(ctx)
+        if player.song_history.empty():
+            return await ctx.send('There are currently no saved songs.')
+
+        latest = player.song_history
+        fmt = '\n'.join(f'**{postiion+1}:** **`{_["title"]}`**' for postiion, _ in enumerate(latest))
+        embed = discord.Embed(title=f'Radio Song History {len(latest)}', description=fmt)
 
         await ctx.send(embed=embed)
 
