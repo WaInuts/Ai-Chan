@@ -6,7 +6,6 @@ import websockets
 from utils import logging
 import urllib.parse
 
-
 # Listen MOE
 async def send_ws(ws, data):
 	json_data = json.dumps(data)

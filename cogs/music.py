@@ -1,4 +1,5 @@
 from discord.ext import tasks, commands
+from discord.player import AudioSource
 import discord
 
 import sys
@@ -7,12 +8,14 @@ import traceback
 import asyncio
 import websockets
 import json
+import time
 from async_timeout import timeout
 from functools import partial
 import yt_dlp as youtube_dl
 from collections import deque
 from utils.helpers import send_pings, build_url
 from utils import logging
+from components import music_ui
 
 from utils.config import LISTEN_MOE
 
@@ -59,6 +62,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.web_url = data.get('webpage_url')
         self.thumbnail = data.get('thumbnail')
         self.duration_string = data.get('duration_string')
+        self.requester = data.get('requester')
 
         self.data = data
 
@@ -105,12 +109,11 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         return cls(discord.FFmpegPCMAudio(data['url'], **ffmpegopts), data=data, requester=requester)
 
-
-# ! CURRENT ISSUES:
-    # Now playing message for Radio will not delete and send new now playing message.
-# TODO:
-    # Implement source into music player queue
-        # So user can queue Radio and be able to skip to it if needed
+# TODO: Fix Radio being True while queueing the next song
+    # Potential fix: add data to song if it's from the radio or not to not rely on boolean and cause race conditions
+# TODO: Make the now playing message more consistent
+    # Potential fix: If source of song is radio, send a ping to recieve song data.
+        # AKA delete infinite loop
 class MusicPlayer(commands.Cog):
     """A class which is assigned to each guild using the bot for Music.
     This class implements a queue and loop, which allows for different guilds to listen to different playlists
@@ -120,7 +123,7 @@ class MusicPlayer(commands.Cog):
 
     __slots__ = ('bot', '_guild', '_channel', '_cog', 'queue', 'next', 'current', 'np', 'volume')
 
-    def __init__(self, ctx, radio=False):
+    def __init__(self, ctx):
         self.bot = ctx.bot
         self._guild = ctx.guild
         self._channel = ctx.channel
@@ -129,41 +132,63 @@ class MusicPlayer(commands.Cog):
         self.queue = asyncio.Queue()
         self.next = asyncio.Event()
 
-        self.radio = radio
-        self.np_radio = None # Now playing message
+        self.radio = False
         self.song_history = deque([], 25) # History of songs played
 
         self.np = None # Now playing message
+        self.np_embed = None # Now playing embed
         self.volume = .5
         self.current = None
 
         ctx.bot.loop.create_task(self.player_loop())
-        ctx.bot.loop.create_task(self.toggle_radio_data())
+        #ctx.bot.loop.create_task(self.toggle_radio_data())
+        self.radio_data = None
+        self.websocket = None
     
-    async def toggle_radio_data(self):
-        """Starts websocket that recieves song data if radio is playing, else closes it."""
-        if self.radio is True:
-            self.radio_data = self.bot.loop.create_task(self.radio_data_loop())
-            await self.radio_data
-        else: 
-            if self.radio_data in asyncio.all_tasks():
-                self.radio_data.cancel()
+    async def enable_radio(self):
+        """Starts a listen.moe stream and starts sending song data via WebSockets from them."""
+        self.radio = True
+        self.radio_data = self.bot.loop.create_task(self.radio_data_loop())
+        await self.radio_data
 
+    async def disable_radio(self):
+        """Disables radio loop radio data loop."""
+        self.radio = False
+        if self.radio_data in asyncio.all_tasks():
+            await self.websocket.close()
+            self.radio_data.cancel()
+    
+    # async def toggle_radio_data(self):
+    #     """Starts websocket that recieves song data if radio is playing, else closes it."""
+    #     if self.radio_data in asyncio.all_tasks():
+    #         self.radio_data.cancel()
+
+    async def add_radio_song(self):
+        """Puts listen.moe song in queue."""
+        try:
+            source = discord.FFmpegOpusAudio(source=LISTEN_MOE, **ffmpegopts)
+        except Exception as err:
+            logging.error(err, "listen.moe")
+        
+        await self.queue.put(source)
+        
     async def player_loop(self):
         """Our main player loop."""
         await self.bot.wait_until_ready()
 
         while not self.bot.is_closed():
             self.next.clear()
+            if self.radio is True:
+                await self.add_radio_song()
 
-            if self.radio is False:
-                try:
-                    # Wait for the next song. If we timeout cancel the player and disconnect...
-                    async with timeout(300):  # 5 minutes...
-                        source = await self.queue.get()
-                except asyncio.TimeoutError:
-                    return self.destroy(self._guild)
-
+            try:
+                # Wait for the next song. If we timeout cancel the player and disconnect...
+                async with timeout(300):  # 5 minutes...
+                    source = await self.queue.get()
+            except asyncio.TimeoutError:
+                return self.destroy(self._guild)
+            
+            if not isinstance(source, AudioSource):
                 if not isinstance(source, YTDLSource):
                     # Source was probably a stream (not downloaded)
                     # So we should regather to prevent stream expiration
@@ -174,19 +199,16 @@ class MusicPlayer(commands.Cog):
                                                 f'```css\n[{e}]\n```')
                         continue
             
-            else:
-                try:
-                    source = discord.FFmpegOpusAudio(source=LISTEN_MOE, **ffmpegopts)
-                except Exception as err:
-                    logging.error(err, "listen.moe")
-            
-            source.volume = self.volume
+            # source.volume = self.volume
             self.current = source
 
             self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
             if self.radio is False:
-                self.np = await self._channel.send(f'**Now Playing:** `{source.title}` requested by '
-                                               f'`{source.requester.display_name}`')
+                embed = music_ui.now_playing(song_title=source['title'], song_url=source['webpage_url'], duration_string=source['duration_string'], source="Youtube", source_logo="https://1000logos.net/wp-content/uploads/2017/05/Red-YouTube-logo.png", requester=source.requester, thumbnail=source.thumbnail)
+                self.np_embed = embed 
+
+            self.np = await self._channel.send(embed=self.np_embed)
+                
             await self.next.wait()
 
             # Make sure the FFmpeg process is cleaned up.
@@ -195,8 +217,7 @@ class MusicPlayer(commands.Cog):
 
             try:
                 # We are no longer playing this song...
-                if self.radio is False:
-                    await self.np.delete()
+                await self.np.delete()
             except discord.HTTPException:
                 pass
 
@@ -204,17 +225,26 @@ class MusicPlayer(commands.Cog):
         """Coroutine that uses WebSockets to receive song data from listen.moe"""
         uri = 'wss://listen.moe/gateway_v2'
         async with websockets.connect(uri, ping_interval=None) as websocket:
+            self.websocket = websocket
             while True:
                 data = json.loads(await websocket.recv())
                 if data['op'] == 0:
                     heartbeat = data['d']['heartbeat'] / 1000
                     self.bot.loop.create_task(send_pings(websocket, heartbeat))
                 elif data['op'] == 1:
-                    try:
-                        await self.np.delete()
-                    except:
-                        pass
                     await self.set_now_playing(data)
+
+    async def get_song_data(self):
+        """Get song data from listen.moe websocket."""
+        uri = 'wss://listen.moe/gateway_v2'
+        async with websockets.connect(uri, ping_interval=None) as websocket:
+            self.websocket = websocket
+            data = json.loads(await websocket.recv())
+            if data['op'] == 0:
+                heartbeat = data['d']['heartbeat'] / 1000
+                self.bot.loop.create_task(send_pings(websocket, heartbeat))
+            elif data['op'] == 1:
+                await self.set_now_playing(data)
 
     async def set_now_playing(self, data):
         """Gets songtitle and artist an sets them for class from JSON response."""
@@ -223,7 +253,8 @@ class MusicPlayer(commands.Cog):
             'artist' : data['d']['song']['artists'][0]['name'],
             'image' : data['d']['song']['artists'][0]['image'],
             'sources' : data['d']['song']['sources'],
-            'duration' : data['d']['song']['duration']
+            'duration' : data['d']['song']['duration'],
+            'duration_string' : time.strftime("%M:%S", time.gmtime(int(data['d']['song']['duration'])))
         }
 
         # Create URL for Song
@@ -239,12 +270,16 @@ class MusicPlayer(commands.Cog):
 
         # Push data to history
         self.song_history.appendleft(song_data)
-        logging.info(self.song_history)
 
-        embed = discord.Embed(title=f":notes: {song_data['title']} :notes:", description=f"by {song_data['artist']}\n\n[Song Link]({song_data['webpage_url']})")
-        embed.set_author(name="JP Radio", icon_url="https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Flag_of_Japan.svg/1280px-Flag_of_Japan.svg.png")
-        embed.set_footer(text="listen.moe (c) 2024")
-        self.np = await self._channel.send(embed=embed)
+        logging.info(song_data['webpage_url'])
+        embed = music_ui.now_playing(song_title=song_data['title'], song_artist=song_data['artist'], song_url=webpage_url, duration_string=song_data['duration_string'], source="JP Radio", source_logo="https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Flag_of_Japan.svg/1280px-Flag_of_Japan.svg.png", footer="listen.moe (c) 2024")
+        self.np_embed = embed
+
+        # embed = discord.Embed(title=f":notes: {song_data['title']} :notes:", description=f"by {song_data['artist']}\n\n[Song Link]({song_data['webpage_url']})")
+        # embed.set_author(name="JP Radio", icon_url="https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Flag_of_Japan.svg/1280px-Flag_of_Japan.svg.png")
+        # embed.set_footer(text="listen.moe (c) 2024")
+
+        # self.np = await self._channel.send(embed=embed)
 
     def destroy(self, guild):
         """Disconnect and cleanup the player."""
@@ -362,30 +397,14 @@ class Music(commands.Cog):
         else:
             return False
         
-    def get_player(self, ctx, radio=False):
+    def get_player(self, ctx):
         """Retrieve the guild player, or generate one."""
         try:
             player = self.players[ctx.guild.id]
-            if radio is True:
-                ctx.voice_client.stop()
-                player.radio = True
-                player.next.set()
-            else:
-                player.radio = False
 
         except KeyError:
-            player = MusicPlayer(ctx, radio)
+            player = MusicPlayer(ctx)
             self.players[ctx.guild.id] = player
-
-        return player
-
-    def get_music_player(self, ctx):
-        """Retrieve the guild player."""
-        try:
-            player = self.players[ctx.guild.id]
-
-        except KeyError:
-            logging.warning('No player active!', 'discord')
 
         return player
 
@@ -434,6 +453,7 @@ class Music(commands.Cog):
             await ctx.invoke(self.connect_)
 
         player = self.get_player(ctx)
+        await player.disable_radio()
 
         # If download is False, source will be a dict which will be used later to regather the stream.
         # If download is True, source will be a discord.FFmpegPCMAudio with a VolumeTransformer.
@@ -443,10 +463,13 @@ class Music(commands.Cog):
 
         # Tell user the song's position in queue.
         queue_size = player.queue.qsize()
-        embed = discord.Embed(title="Added to Queue! <:hutaobootao:1187255522148233278>", 
-                            description=f"{source['title']}\n `{source['duration_string']}`")
-        embed.set_thumbnail(url='{}'.format(source['thumbnail']))
-        embed.set_footer(text='Will play soon!'if queue_size<=1 else f'Position #{queue_size}', icon_url='https://imgur.com/PKi66Gs.png')
+        embed = music_ui.queue_song(song_title=source['title'], song_url=source['webpage_url'], queue_size=queue_size, duration_string=source['duration_string'], requester=source['requester'].display_name, thumbnail=source['thumbnail'])
+
+        # embed = discord.Embed(title=f"{source['title']}", 
+        #                     description=f"\n`{source['duration_string']}`")
+        # embed.set_author(name="Added to Queue ~")
+        # embed.set_thumbnail(url='{}'.format(source['thumbnail']))
+        # embed.set_footer(text='Will play soon!'if queue_size<=1 else f'Position #{queue_size}', icon_url='https://imgur.com/PKi66Gs.png')
         
         await ctx.send(embed=embed)
 
@@ -493,6 +516,7 @@ class Music(commands.Cog):
         vc.stop()
         await ctx.send(f'**`{ctx.author.display_name}`**: Skipped the song!')
 
+    # TODO: Make this work with Radio in queue
     @commands.hybrid_command(name='queue', aliases=['q', 'playlist'])
     async def queue_info(self, ctx):
         """Retrieve a basic queue of upcoming songs."""
@@ -521,7 +545,7 @@ class Music(commands.Cog):
         if not vc or not vc.is_connected():
             return await ctx.send('I am not currently connected to voice!')
 
-        player = self.get_music_player(ctx)
+        player = self.get_player(ctx)
         if len(player.song_history) == 0:
             return await ctx.send('There are currently no saved songs.')
 
@@ -549,8 +573,7 @@ class Music(commands.Cog):
         except discord.HTTPException:
             pass
 
-        player.np = await ctx.send(f'**Now Playing:** `{vc.source.title}` '
-                                   f'requested by `{vc.source.requester.display_name}`')
+        player.np = await ctx.send(embed=player.np_embed)
 
     @commands.hybrid_command(name='volume', aliases=['vol'])
     async def change_volume(self, ctx, *, vol: float):
@@ -585,14 +608,30 @@ class Music(commands.Cog):
     @commands.hybrid_command(name="radio")
     async def start_radio(self, ctx):
         """Radio that plays Japanese Pop Music 24/7."""
+        # TODO: Add parameter that clears the queue and plays radio after
+        # TODO: Add parameter that enables/disables np song data
         await ctx.typing()
 
-        vc = ctx.voice_client
+        player = self.get_player(ctx)
 
-        if not vc:
-            await ctx.invoke(self.connect_)
+        if player.radio is False:
+            vc = ctx.voice_client
 
-        self.get_player(ctx, radio=True)
+            if not vc:
+                await ctx.invoke(self.connect_)
+
+            if ctx.voice_client.is_playing():
+                embed = discord.Embed(title="Queued Radio!", description="Will play after queue is empty!")
+                embed.set_footer(text="To play immediately, do /radio again with 'Force' enabled!")
+                logging.info("Song is Playing")
+                await ctx.send(embed=embed)
+
+            await player.enable_radio()
+            # source = discord.FFmpegOpusAudio(source=LISTEN_MOE, **ffmpegopts)
+            # await player.queue.put(source)
+
+        else:
+            await ctx.send(":cross_mark: Already playing/queued Radio!")
 
         # _next = asyncio.Event() # 
         # voice_channel = ctx.voice_client
