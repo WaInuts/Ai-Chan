@@ -131,7 +131,7 @@ class MusicPlayer(commands.Cog):
 
         self.radio = radio
         self.np_radio = None # Now playing message
-        self.song_history = deque([], 20) # History of songs played
+        self.song_history = deque([], 25) # History of songs played
 
         self.np = None # Now playing message
         self.volume = .5
@@ -139,7 +139,7 @@ class MusicPlayer(commands.Cog):
 
         ctx.bot.loop.create_task(self.player_loop())
         ctx.bot.loop.create_task(self.toggle_radio_data())
-
+    
     async def toggle_radio_data(self):
         """Starts websocket that recieves song data if radio is playing, else closes it."""
         if self.radio is True:
@@ -226,11 +226,6 @@ class MusicPlayer(commands.Cog):
             'duration' : data['d']['song']['duration']
         }
 
-        songTitle = data['d']['song']['title']
-        artist = data['d']['song']['artists'][0]['name']
-        image = data['d']['song']['artists'][0]['image']
-        sources = data['d']['song']['sources']
-
         # Create URL for Song
         try:
             songHeader = song_data['title'] + ' by ' + song_data['artist']
@@ -239,15 +234,15 @@ class MusicPlayer(commands.Cog):
             song_data['artist'] = ''
 
         logging.info(f'Radio Now Playing: {songHeader}', 'listen.moe')
-        url = build_url('https://www.google.com', 'search', {'q' : songHeader})
-        song_data['url'] = url
+        webpage_url = build_url('https://www.google.com', 'search', {'q' : songHeader})
+        song_data['webpage_url'] = webpage_url
 
         # Push data to history
         self.song_history.appendleft(song_data)
         logging.info(self.song_history)
 
-        embed = discord.Embed(title=f":notes: {song_data['title']} :notes:", description=f"by {song_data['artist']}\n\n[Song Link]({song_data['url']})")
-        embed.set_author(name="JP Radio")
+        embed = discord.Embed(title=f":notes: {song_data['title']} :notes:", description=f"by {song_data['artist']}\n\n[Song Link]({song_data['webpage_url']})")
+        embed.set_author(name="JP Radio", icon_url="https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Flag_of_Japan.svg/1280px-Flag_of_Japan.svg.png")
         embed.set_footer(text="listen.moe (c) 2024")
         self.np = await self._channel.send(embed=embed)
 
@@ -520,20 +515,20 @@ class Music(commands.Cog):
 
     @commands.hybrid_command(name='history', aliases=['h', 'radio_history'])
     async def history(self, ctx):
-        """Retrieve a deque of the last twenty played songs on the radio."""
+        """Retrieve a list of the last twenty played songs on the radio."""
         vc = ctx.voice_client
 
         if not vc or not vc.is_connected():
             return await ctx.send('I am not currently connected to voice!')
 
         player = self.get_music_player(ctx)
-        if player.song_history.empty():
+        if len(player.song_history) == 0:
             return await ctx.send('There are currently no saved songs.')
 
         latest = player.song_history
-        fmt = '\n'.join(f'**{postiion+1}:** **`{_["title"]}`**' for postiion, _ in enumerate(latest))
-        embed = discord.Embed(title=f'Radio Song History {len(latest)}', description=fmt)
-
+        fmt = '\n'.join(f'**{postiion+1}:** [**`{_["title"]}`**]({_["webpage_url"]})' + f' by {_["artist"]}' if _["artist"] else '' for postiion, _ in enumerate(latest))
+        embed = discord.Embed(title= f':notes: Last {len(latest)} Played Songs:' if (len(latest) > 1) else f':notes: Last Played Song:', description=fmt)
+        embed.set_author(name=f"Song History")
         await ctx.send(embed=embed)
 
     @commands.hybrid_command(name='now_playing', aliases=['np', 'current', 'currentsong', 'playing'])
