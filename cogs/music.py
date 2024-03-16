@@ -52,7 +52,6 @@ class InvalidVoiceChannel(VoiceConnectionError):
     """Exception for cases of invalid Voice Channels."""
 
 
-# TODO: CREATE NEW CLASS FOR OPUS ENCODED AUDIO SOURCE
 class SongSource(discord.PCMVolumeTransformer):
 
     def __init__(self, source, *, data, requester):
@@ -60,9 +59,11 @@ class SongSource(discord.PCMVolumeTransformer):
         self.requester = requester
 
         self.title = data.get('title')
+        self.artist = data.get('artist')
         self.web_url = data.get('webpage_url')
         self.thumbnail = data.get('thumbnail')
         self.duration_string = data.get('duration_string')
+        self.platform = data.get('platform')
         self.requester = data.get('requester')
 
         self.data = data
@@ -95,7 +96,7 @@ class SongSource(discord.PCMVolumeTransformer):
                     'title': data['title'],
                     'thumbnail': data['thumbnail'],
                     'duration_string': data['duration_string'],
-                    'platform': 'Youtube'}
+                    'platform': "Youtube"}
 
         return cls(discord.FFmpegPCMAudio(source, **ffmpegopts), data=data, requester=ctx.author)
 
@@ -108,34 +109,38 @@ class SongSource(discord.PCMVolumeTransformer):
 
         to_run = partial(ytdl.extract_info, url=data['webpage_url'], download=False)
         data = await loop.run_in_executor(None, to_run)
+        data['platform'] = "Youtube"
 
+        logging.info(data)
         return cls(discord.FFmpegPCMAudio(data['url'], **ffmpegopts), data=data, requester=requester)
     
+
     @classmethod
     async def create_listen_moe_source(cls, bot, ctx):
         """Get song data from listen.moe websocket and creates an AudioSource."""
         uri = 'wss://listen.moe/gateway_v2'
         requester = ctx.author
         async with websockets.connect(uri, ping_interval=None) as websocket:
-            data = json.loads(await websocket.recv())
+            response = json.loads(await websocket.recv())
             while True:
-                data = json.loads(await websocket.recv())
-                if data['op'] == 0:
-                    heartbeat = data['d']['heartbeat'] / 1000
+                response = json.loads(await websocket.recv())
+                if response['op'] == 0:
+                    heartbeat = response['d']['heartbeat'] / 1000
                     bot.loop.create_task(send_pings(websocket, heartbeat))
-                    logging.info(data)
-                elif data['op'] == 1:
-                    song_data = cls.decode_song_data(cls, data)
+                    logging.info(response)
+                elif response['op'] == 1:
+                    song_data = cls.decode_song_data(cls, response)
                     break
             
         try:
-            source = discord.FFmpegOpusAudio(source=LISTEN_MOE, **ffmpegopts)
+            source = discord.FFmpegPCMAudio(source=LISTEN_MOE, **ffmpegopts)
         except Exception as err:
             logging.error(err, "listen.moe")
 
+        logging.info(f'create source: {type(song_data)}')
         return cls(source, data=song_data, requester=requester)
         
-    async def decode_song_data(cls, data):
+    def decode_song_data(cls, data):
         """Gets songtitle and artist an sets them for class from JSON response."""
         song_data = {
             'title' : data['d']['song']['title'],
@@ -144,7 +149,7 @@ class SongSource(discord.PCMVolumeTransformer):
             'sources' : data['d']['song']['sources'],
             'duration' : data['d']['song']['duration'],
             'duration_string' : time.strftime("%M:%S", time.gmtime(int(data['d']['song']['duration']))),
-            'platform' : 'listen.moe'
+            'platform' : "listen.moe"
         }
 
         # Create URL for Song
@@ -156,16 +161,16 @@ class SongSource(discord.PCMVolumeTransformer):
 
         logging.info(f'Radio Now Playing: {songHeader}', 'listen.moe')
         webpage_url = build_url('https://www.google.com', 'search', {'q' : songHeader})
-        song_data['web_url'] = webpage_url
+        song_data['webpage_url'] = webpage_url
 
         # return data 
+        logging.info(type(song_data))
         return song_data
-
-# TODO: Fix Radio being True while queueing the next song
-    # Potential fix: add data to song if it's from the radio or not to not rely on boolean and cause race conditions
-# TODO: Make the now playing message more consistent
-    # Potential fix: If source of song is radio, send a ping to recieve song data.
-        # AKA delete infinite loop
+    
+# TODO: Add way to clear queue
+# TODO: Add way to remove specific song from queue
+# TODO: Fix Song History (not detecting some dict keys)
+# TODO: Update queue
 class MusicPlayer(commands.Cog):
     """A class which is assigned to each guild using the bot for Music.
     This class implements a queue and loop, which allows for different guilds to listen to different playlists
@@ -186,6 +191,7 @@ class MusicPlayer(commands.Cog):
         self.next = asyncio.Event()
 
         self.radio = False
+        self.radio_is_running = False
         self.song_history = deque([], 25) # History of songs played
 
         self.np = None # Now playing message
@@ -197,38 +203,6 @@ class MusicPlayer(commands.Cog):
         #ctx.bot.loop.create_task(self.toggle_radio_data())
         self.radio_data = None
         self.websocket = None
-    
-    # async def enable_radio(self):
-    #     """Starts a listen.moe stream and starts sending song data via WebSockets from them."""
-    #     self.radio = True
-    #     self.radio_data = self.bot.loop.create_task(self.radio_data_loop())
-    #     await self.radio_data
-
-    # async def disable_radio(self):
-    #     """Disables radio loop radio data loop."""
-    #     self.radio = False
-    #     if self.radio_data in asyncio.all_tasks():
-    #         await self.websocket.close()
-    #         self.radio_data.cancel()
-    
-    # async def toggle_radio_data(self):
-    #     """Starts websocket that recieves song data if radio is playing, else closes it."""
-    #     if self.radio_data in asyncio.all_tasks():
-    #         self.radio_data.cancel()
-
-    # async def add_radio_song(self):
-    #     """Puts listen.moe song in queue."""
-    #     data = await self.get_song_data()
-    #     try:
-    #         source = discord.FFmpegOpusAudio(source=LISTEN_MOE, **ffmpegopts)
-    #     except Exception as err:
-    #         logging.error(err, "listen.moe")
-        
-    #     # Push data to history
-    #     self.song_history.appendleft(data)
-
-    #     # Add Radio to queue
-    #     await self.queue.put(source)
         
     async def player_loop(self):
         """Our main player loop."""
@@ -244,32 +218,43 @@ class MusicPlayer(commands.Cog):
             except asyncio.TimeoutError:
                 return self.destroy(self._guild)
             
-            if not isinstance(source, AudioSource):
-                if not isinstance(source, SongSource):
-                    # Source was probably a stream (not downloaded)
-                    # So we should regather to prevent stream expiration
-                    try:
-                        source = await SongSource.regather_stream(source, loop=self.bot.loop)
-                    except Exception as e:
-                        await self._channel.send(f'There was an error processing your song.\n'
-                                                f'```css\n[{e}]\n```')
-                        continue
+            if source['platform'] == 'listen.moe':
+                # Source is from listen.moe
+                # Update AudioSource so it gets the latest song and not the saved one from the queue (prevents duplicates and starting at halfway point of song)
+                try:
+                    source = await SongSource.create_listen_moe_source(self.bot, self.ctx)
+                except Exception as err:
+                    logging.error(err, "listen.moe")            
+            else:
+                self.radio_is_running = False
+
+            if not isinstance(source, SongSource):
+                # Source was probably a stream (not downloaded)
+                # So we should regather to prevent stream expiration
+                try:
+                    source = await SongSource.regather_stream(source, loop=self.bot.loop)
+                except Exception as e:
+                    await self._channel.send(f'There was an error processing your song.\n'
+                                            f'```css\n[{e}]\n```')
+                    continue
             
             source.volume = self.volume
             self.current = source
 
             self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
             
-            embed = music_ui.now_playing(song_title=source['title'], song_url=source['web_url'], duration_string=source['duration_string'], platform=source['platform'], requester=source['requester'], thumbnail=source['thumbnail'])
+            embed = music_ui.now_playing(song_title=source['title'], song_artist=source['artist'], song_url=source['web_url'], duration_string=source['duration_string'], platform=source['platform'], requester=source['requester'], thumbnail=source['thumbnail'])
             self.np_embed = embed 
-            
-            if source['platform'] == "listen.moe":
-                source = SongSource.create_listen_moe_source(self.bot, self.ctx)  # (ctx, loop=self.bot.loop)
-                self.queue.put(source)
 
             self.np = await self._channel.send(embed=self.np_embed)
-                
+
             await self.next.wait()
+
+            self.song_history.append(source)
+
+            if source['platform'] == "listen.moe":
+                new_source = await SongSource.create_listen_moe_source(self.bot, self.ctx)  # (ctx, loop=self.bot.loop)
+                await self.queue.put(new_source)    
 
             # Make sure the FFmpeg process is cleaned up.
             source.cleanup()
@@ -281,102 +266,9 @@ class MusicPlayer(commands.Cog):
             except discord.HTTPException:
                 pass
 
-    # async def radio_data_loop(self):
-    #     """Coroutine that uses WebSockets to receive song data from listen.moe"""
-    #     uri = 'wss://listen.moe/gateway_v2'
-    #     async with websockets.connect(uri, ping_interval=None) as websocket:
-    #         self.websocket = websocket
-    #         while True:
-    #             data = json.loads(await websocket.recv())
-    #             if data['op'] == 0:
-    #                 heartbeat = data['d']['heartbeat'] / 1000
-    #                 self.bot.loop.create_task(send_pings(websocket, heartbeat))
-    #             elif data['op'] == 1:
-    #                 await self.set_now_playing(data)
-
-    # async def get_song_data(self):
-    #     """Get song data from listen.moe websocket."""
-    #     uri = 'wss://listen.moe/gateway_v2'
-    #     async with websockets.connect(uri, ping_interval=None) as websocket:
-    #         data = json.loads(await websocket.recv())
-    #         while True:
-    #             if data['op'] == 0:
-    #                 heartbeat = data['d']['heartbeat'] / 1000
-    #                 self.bot.loop.create_task(send_pings(websocket, heartbeat))
-    #             elif data['op'] == 1:
-    #                 song_data = await self.decode_song_data(data)
-    #                 return song_data
-
-        # embed = music_ui.now_playing(song_title=song_data['title'], song_artist=song_data['artist'], song_url=song_data['webpage_url'], duration_string=song_data['duration_string'], platform="listen.moe")
-        # self.np_embed = embed
-
     def destroy(self, guild):
         """Disconnect and cleanup the player."""
         return self.bot.loop.create_task(self._cog.cleanup(guild))
-
-
-class RadioPlayer(commands.Cog):
-    """A class which is assigned to each guild using the bot for the Radio.
-    This class implements a loop, which allows for different guilds to listen to different radios
-    simultaneously.
-    When the bot disconnects from the Voice it's instance will be destroyed.
-    """
-
-    def __init__(self, ctx):
-            self.bot = ctx.bot
-            self._guild = ctx.guild
-            self.next = asyncio.Event()
-
-            self.np = None  # Now playing message
-            self.volume = .5
-            self.current = None
-
-            ctx.bot.loop.create_task(self.radio_loop())
-            ctx.bot.loop.create_task(self.song_data_loop(ctx))
-
-    async def radio_loop(self):
-        """Coroutine that plays music from listen.moe through Discord's voice client"""
-        await self.bot.wait_until_ready()
-
-        while not self.bot.is_closed():
-            self.next.clear() # Block from RePlaying
-        try:
-            source = discord.FFmpegOpusAudio(source=LISTEN_MOE, **ffmpegopts)
-        except Exception as err:
-            logging.error(err, "listen.moe")
-        
-        source.volume = self.volume
-
-        self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
-        await self.next.wait()
-
-        # Make sure the FFmpeg process is cleaned up.
-        source.cleanup()
-
-    async def song_data_loop(self, ctx):
-        """Coroutine that uses WebSockets to receive song data from listen.moe"""
-        uri = 'wss://listen.moe/gateway_v2'
-        async with websockets.connect(uri, ping_interval=None) as websocket:
-            while True:
-                data = json.loads(await websocket.recv())
-                if data['op'] == 0:
-                    heartbeat = data['d']['heartbeat'] / 1000
-                    self.bot.loop.create_task(send_pings(websocket, heartbeat))
-                    # logging.info(f"{len(asyncio.all_tasks())}")
-                elif data['op'] == 1:
-                    await self._send_song_data(ctx, data)
-
-    async def _send_song_data(self, ctx, data):
-        """Gets songtitle and artist from JSON response."""
-        songTitle = data['d']['song']['title']
-        artist = data['d']['song']['artists'][0]['name']
-        try:
-            songHeader = songTitle + ' by ' + artist
-        except:
-            songHeader = songTitle
-        logging.info(f'Radio Now Playing: {songHeader}', 'listen.moe')
-        embed = discord.Embed(title=':notes: ' + songHeader + ' :notes:')
-        await self._channel.send(embed=embed)
 
 class Music(commands.Cog):
     """Music related commands."""
@@ -482,7 +374,6 @@ class Music(commands.Cog):
             await ctx.invoke(self.connect_)
 
         player = self.get_player(ctx)
-        await player.disable_radio()
 
         # If download is False, source will be a dict which will be used later to regather the stream.
         # If download is True, source will be a discord.FFmpegPCMAudio with a VolumeTransformer.
@@ -514,19 +405,22 @@ class Music(commands.Cog):
         if not vc:
             await ctx.invoke(self.connect_)
 
-        if ctx.voice_client.is_playing():
-            embed = discord.Embed(title="Queued Radio!", description="Will play after queue is empty!", color=color)
-            embed.set_footer(text="To play immediately, do /radio again with 'Force' enabled!")
-            logging.info("Song is Playing")
-            await ctx.send(embed=embed)
-
-        source = await SongSource.create_listen_moe_source(self.bot, ctx) # (ctx, loop=self.bot.loop)
+        if player.current != None:
+            if player.current.platform == 'listen.moe' or player.radio_is_running:
+                await ctx.send(":cross_mark: Already playing/queued Radio!")
+                return
+            else:
+                embed = discord.Embed(title="Queued Radio!", description="Will play after queue is empty!", color=color)
+                embed.set_footer(text="To play immediately, do /radio again with 'Force' enabled!")
+                logging.info("Song is Playing")
+                await ctx.send(embed=embed)
+        
+        player.radio_is_running = True
+        
+        source = await SongSource.create_listen_moe_source(self.bot, ctx)
         logging.info(source)
 
         await player.queue.put(source)   
-
-        # else:
-        #     await ctx.send(":cross_mark: Already playing/queued Radio!")
 
     @commands.hybrid_command(name='pause')
     async def pause_(self, ctx):
@@ -657,61 +551,6 @@ class Music(commands.Cog):
         await ctx.send(embed=embed)
         # await ctx.send(f'**`{ctx.author}`**: Set the volume to **{vol}%**')
 
-
-        # _next = asyncio.Event() # 
-        # voice_channel = ctx.voice_client
-        
-        # if not voice_channel:
-        #     await ctx.invoke(self.connect_)
-        #     voice_channel = ctx.voice_client
-
-        # radio = self.bot.loop.create_task(self.radio_loop(ctx, _next))
-        # song_data = self.bot.loop.create_task(self.song_data_loop(ctx)) # Connect to listen.moe with websocket to keep recieving song data.
-
-        # await radio
-        # await song_data
-
-    # async def radio_loop(self, ctx, _next):
-    #     """Coroutine that plays music from listen.moe through Discord's voice client"""
-    #     await self.bot.wait_until_ready()
-
-    #     while not self.bot.is_closed():
-    #         _next.clear()
-
-    #         source = discord.FFmpegOpusAudio(source=LISTEN_MOE, **ffmpegopts)
-    #         source.volume = .5
-
-    #         ctx.guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(_next.set))
-    #         await _next.wait()
-
-    #         # Make sure the FFmpeg process is cleaned up.
-    #         source.cleanup()
-
-    # async def song_data_loop(self, ctx):
-    #     """Coroutine that uses WebSockets to receive song data from listen.moe"""
-    #     uri = 'wss://listen.moe/gateway_v2'
-    #     async with websockets.connect(uri, ping_interval=None) as websocket:
-    #         while True:
-    #             data = json.loads(await websocket.recv())
-    #             if data['op'] == 0:
-    #                 heartbeat = data['d']['heartbeat'] / 1000
-    #                 self.bot.loop.create_task(send_pings(websocket, heartbeat))
-    #                 # logging.info(f"{len(asyncio.all_tasks())}")
-    #             elif data['op'] == 1:
-    #                 await self._send_song_data(ctx, data)
-                
-    # async def _send_song_data(self, ctx, data):
-    #     """Gets songtitle and artist from JSON response."""
-    #     songTitle = data['d']['song']['title']
-    #     artist = data['d']['song']['artists'][0]['name']
-    #     try:
-    #         songHeader = songTitle + ' by ' + artist
-    #     except:
-    #         songHeader = songTitle
-    #     logging.info(f'Radio Now Playing: {songHeader}', 'listen.moe')
-    #     embed = discord.Embed(title=':notes: ' + songHeader + ' :notes:')
-    #     await ctx.send(embed=embed)
-
     @commands.hybrid_command(name='stop', aliases=['leave'])
     async def stop_(self, ctx):
         """Stop the currently playing song and destroy the player.
@@ -727,30 +566,6 @@ class Music(commands.Cog):
         await ctx.send(embed=embed)
         await vc.disconnect()
         await self.cleanup(ctx.guild)
-
-    # @commands.hybrid_command(name="radio_song")
-    # async def radio_song(self, ctx):
-    #     url = 'wss://listen.moe/gateway_v2'
-    #     ws = await websockets.connect(url)
-    #     data = json.loads(await ws.recv())
-    #     loop = asyncio.get_event_loop()
-        
-    #     while True:
-    #         data = json.loads(await ws.recv())
-            
-    #         if data['op'] == 0:
-    #             heartbeat = data['d']['heartbeat'] / 1000
-    #             loop.create_task(send_pings(ws, heartbeat))
-    #             logging.info(data)
-    #         elif data['op'] == 1:
-    #             songTitle = data['d']['song']['title']
-    #             artist = data['d']['song']['artists'][0]['name']
-    #             try:
-    #                 songHeader = songTitle + ' by ' + artist
-    #             except:
-    #                 songHeader = songTitle
-    #             embed = discord.Embed(title=':notes: ' + songHeader + ' :notes:')
-    #             await ctx.reply(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
