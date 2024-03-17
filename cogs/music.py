@@ -111,7 +111,6 @@ class SongSource(discord.PCMVolumeTransformer):
         data = await loop.run_in_executor(None, to_run)
         data['platform'] = "Youtube"
 
-        logging.info(data)
         return cls(discord.FFmpegPCMAudio(data['url'], **ffmpegopts), data=data, requester=requester)
     
 
@@ -127,7 +126,6 @@ class SongSource(discord.PCMVolumeTransformer):
                 if response['op'] == 0:
                     heartbeat = response['d']['heartbeat'] / 1000
                     bot.loop.create_task(send_pings(websocket, heartbeat))
-                    logging.info(response)
                 elif response['op'] == 1:
                     song_data = cls.decode_song_data(cls, response)
                     break
@@ -137,7 +135,6 @@ class SongSource(discord.PCMVolumeTransformer):
         except Exception as err:
             logging.error(err, "listen.moe")
 
-        logging.info(f'create source: {type(song_data)}')
         return cls(source, data=song_data, requester=requester)
         
     def decode_song_data(cls, data):
@@ -149,7 +146,7 @@ class SongSource(discord.PCMVolumeTransformer):
             'sources' : data['d']['song']['sources'],
             'duration' : data['d']['song']['duration'],
             'duration_string' : time.strftime("%M:%S", time.gmtime(int(data['d']['song']['duration']))),
-            'platform' : "listen.moe"
+            'platform' : "listen.moe",
         }
 
         # Create URL for Song
@@ -164,13 +161,10 @@ class SongSource(discord.PCMVolumeTransformer):
         song_data['webpage_url'] = webpage_url
 
         # return data 
-        logging.info(type(song_data))
         return song_data
     
 # TODO: Add way to clear queue
 # TODO: Add way to remove specific song from queue
-# TODO: Fix Song History (not detecting some dict keys)
-# TODO: Update queue
 class MusicPlayer(commands.Cog):
     """A class which is assigned to each guild using the bot for Music.
     This class implements a queue and loop, which allows for different guilds to listen to different playlists
@@ -200,7 +194,6 @@ class MusicPlayer(commands.Cog):
         self.current = None
 
         ctx.bot.loop.create_task(self.player_loop())
-        #ctx.bot.loop.create_task(self.toggle_radio_data())
         self.radio_data = None
         self.websocket = None
         
@@ -240,6 +233,7 @@ class MusicPlayer(commands.Cog):
             
             source.volume = self.volume
             self.current = source
+            # self.song_history.append(source)
 
             self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
             
@@ -412,13 +406,11 @@ class Music(commands.Cog):
             else:
                 embed = discord.Embed(title="Queued Radio!", description="Will play after queue is empty!", color=color)
                 embed.set_footer(text="To play immediately, do /radio again with 'Force' enabled!")
-                logging.info("Song is Playing")
                 await ctx.send(embed=embed)
         
         player.radio_is_running = True
         
         source = await SongSource.create_listen_moe_source(self.bot, ctx)
-        logging.info(source)
 
         await player.queue.put(source)   
 
@@ -462,6 +454,7 @@ class Music(commands.Cog):
             return
 
         vc.stop()
+
         await ctx.send(f'**`{ctx.author.display_name}`**: Skipped the song!')
 
     # TODO: Make this work with Radio in queue
@@ -498,7 +491,7 @@ class Music(commands.Cog):
             return await ctx.send('There are currently no saved songs.')
 
         latest = player.song_history
-        fmt = '\n'.join(f'**{postiion+1}:** [**`{_["title"]}`**]({_["webpage_url"]})' + f' by {_["artist"]}' if _["artist"] else '' for postiion, _ in enumerate(latest))
+        fmt = '\n'.join(f'**{postiion+1}:** [**`{_["title"]}`**]({_["web_url"]})' + (f' by {_["artist"]}' if _["artist"] else '') for postiion, _ in enumerate(latest))
         embed = discord.Embed(title= f':notes: Last {len(latest)} Played Songs:' if (len(latest) > 1) else f':notes: Last Played Song:', description=fmt)
         embed.set_author(name=f"Song History")
         await ctx.send(embed=embed)
