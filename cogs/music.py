@@ -183,6 +183,7 @@ class MusicPlayer(commands.Cog):
 
         self.queue = asyncio.Queue()
         self.next = asyncio.Event()
+        self.remove_positions = []
 
         self.radio = False
         self.radio_is_running = False
@@ -204,6 +205,7 @@ class MusicPlayer(commands.Cog):
         while not self.bot.is_closed():
             self.next.clear()
 
+            # Check if 
             try:
                 # Wait for the next song. If we timeout cancel the player and disconnect...
                 async with timeout(300):  # 5 minutes...
@@ -233,7 +235,6 @@ class MusicPlayer(commands.Cog):
             
             source.volume = self.volume
             self.current = source
-            # self.song_history.append(source)
 
             self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
             
@@ -457,7 +458,18 @@ class Music(commands.Cog):
 
         await ctx.send(f'**`{ctx.author.display_name}`**: Skipped the song!')
 
-    # TODO: Make this work with Radio in queue
+    @commands.hybrid_command(name='remove', aliases=['d', 'delete'])
+    async def remove_(self, ctx, position: int):
+        """Remove a song from the queue.        
+        
+        Parameters
+        -----------
+        position: int
+            Position of song that will be removed.
+        """
+        player = self.get_player(ctx)
+        logging.info(player.queue._queue[position])
+
     @commands.hybrid_command(name='queue', aliases=['q', 'playlist'])
     async def queue_info(self, ctx):
         """Retrieve a basic queue of upcoming songs."""
