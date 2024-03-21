@@ -19,7 +19,7 @@ from components import music_ui
 
 from utils.config import LISTEN_MOE
 
-#TODO: Fix bug where second song in queue stops playing midway/randomly? (need to do further testing)
+#TODO: Fix bug where second song in queue stops playing midway/randomly? (need to do further testing) (only happens on the server)
 #TODO: Add Spotify Support
 ytdlopts = {
     'format': 'bestaudio/best',
@@ -91,12 +91,15 @@ class SongSource(discord.PCMVolumeTransformer):
         if download:
             source = ytdl.prepare_filename(data)
         else:
-            return {'webpage_url': data['webpage_url'], 
+            song_data = {
+                    'webpage_url': data['webpage_url'], 
                     'requester': ctx.author, 
                     'title': data['title'],
                     'thumbnail': data['thumbnail'],
                     'duration_string': data['duration_string'],
                     'platform': "Youtube"}
+            cls.data = song_data
+            return song_data
 
         return cls(discord.FFmpegPCMAudio(source, **ffmpegopts), data=data, requester=ctx.author)
 
@@ -110,6 +113,8 @@ class SongSource(discord.PCMVolumeTransformer):
         to_run = partial(ytdl.extract_info, url=data['webpage_url'], download=False)
         data = await loop.run_in_executor(None, to_run)
         data['platform'] = "Youtube"
+
+        cls.data = data
 
         return cls(discord.FFmpegPCMAudio(data['url'], **ffmpegopts), data=data, requester=requester)
     
@@ -161,10 +166,11 @@ class SongSource(discord.PCMVolumeTransformer):
         song_data['webpage_url'] = webpage_url
 
         # return data 
+        cls.data = song_data
         return song_data
     
 # TODO: Add way to clear queue
-# TODO: Add way to remove specific song from queue
+# TODO: Fix bug where radio will still add a song to queue even if youtube song is added
 class MusicPlayer(commands.Cog):
     """A class which is assigned to each guild using the bot for Music.
     This class implements a queue and loop, which allows for different guilds to listen to different playlists
@@ -183,7 +189,7 @@ class MusicPlayer(commands.Cog):
 
         self.queue = asyncio.Queue()
         self.next = asyncio.Event()
-        self.remove_positions = []
+        self.songs_data = list() # Stores songs data for song removal and queue info since queues are not random access
 
         self.radio = False
         self.radio_is_running = False
@@ -209,58 +215,90 @@ class MusicPlayer(commands.Cog):
             try:
                 # Wait for the next song. If we timeout cancel the player and disconnect...
                 async with timeout(300):  # 5 minutes...
-                    source = await self.queue.get()
+                    source = await self.queue_get()
             except asyncio.TimeoutError:
                 return self.destroy(self._guild)
             
-            if source['platform'] == 'listen.moe':
-                # Source is from listen.moe
-                # Update AudioSource so it gets the latest song and not the saved one from the queue (prevents duplicates and starting at halfway point of song)
+            if source: # If song was not removed...
+                if source['platform'] == 'listen.moe':
+                    # Source is from listen.moe
+                    # Update AudioSource so it gets the latest song and not the saved one from the queue (prevents duplicates and starting at halfway point of song)
+                    try:
+                        source = await SongSource.create_listen_moe_source(self.bot, self.ctx)
+                    except Exception as err:
+                        logging.error(err, "listen.moe")            
+                else:
+                    self.radio_is_running = False
+
+                if not isinstance(source, SongSource):
+                    # Source was probably a stream (not downloaded)
+                    # So we should regather to prevent stream expiration
+                    try:
+                        source = await SongSource.regather_stream(source, loop=self.bot.loop)
+                    except Exception as e:
+                        await self._channel.send(f'There was an error processing your song.\n'
+                                                f'```css\n[{e}]\n```')
+                        continue
+                
+                source.volume = self.volume
+                self.current = source
+
+                self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
+                
+                embed = music_ui.now_playing(song_title=source['title'], song_artist=source['artist'], song_url=source['web_url'], duration_string=source['duration_string'], platform=source['platform'], requester=source['requester'], thumbnail=source['thumbnail'])
+                self.np_embed = embed 
+
+                self.np = await self._channel.send(embed=self.np_embed)
+
+                await self.next.wait()
+
+                self.song_history.append(source)
+
+                if source['platform'] == "listen.moe":
+                    new_source = await SongSource.create_listen_moe_source(self.bot, self.ctx)  # (ctx, loop=self.bot.loop)
+                    await self.queue_put(new_source)    
+
+                # Make sure the FFmpeg process is cleaned up.
+                source.cleanup()
+                self.current = None
+
                 try:
-                    source = await SongSource.create_listen_moe_source(self.bot, self.ctx)
-                except Exception as err:
-                    logging.error(err, "listen.moe")            
-            else:
-                self.radio_is_running = False
+                    # We are no longer playing this song...
+                    await self.np.delete()
+                except discord.HTTPException:
+                    pass
 
-            if not isinstance(source, SongSource):
-                # Source was probably a stream (not downloaded)
-                # So we should regather to prevent stream expiration
-                try:
-                    source = await SongSource.regather_stream(source, loop=self.bot.loop)
-                except Exception as e:
-                    await self._channel.send(f'There was an error processing your song.\n'
-                                            f'```css\n[{e}]\n```')
-                    continue
-            
-            source.volume = self.volume
-            self.current = source
+    async def queue_put(self, data):
+        """Gets item from queue and song data list."""
+        await self.queue.put(data)
+        self.songs_data.append(data)
 
-            self._guild.voice_client.play(source, after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set))
-            
-            embed = music_ui.now_playing(song_title=source['title'], song_artist=source['artist'], song_url=source['web_url'], duration_string=source['duration_string'], platform=source['platform'], requester=source['requester'], thumbnail=source['thumbnail'])
-            self.np_embed = embed 
+    async def queue_get(self):
+        """Pops item from queue and song data list. Checks if song was removed from queue."""
+        source = await self.queue.get()
+        try:
+            song_data = self.songs_data[0]
+        except IndexError:
+            logging.info("No more songs in queue!", "discord.MusicPlayer")
+            # remove song
+            source = None
+            return source
+        except Exception as err:
+            logging.info(err, "discord.MusicPlayer")
+        
+        # Check if song was removed
+        if source['title'] != song_data['title']:
+            # remove song
+            source = None
+        else:
+            # If titles match, remove title from songs_data list.
+            self.songs_data.pop(0)
 
-            self.np = await self._channel.send(embed=self.np_embed)
+        return source
 
-            await self.next.wait()
-
-            self.song_history.append(source)
-
-            if source['platform'] == "listen.moe":
-                new_source = await SongSource.create_listen_moe_source(self.bot, self.ctx)  # (ctx, loop=self.bot.loop)
-                await self.queue.put(new_source)    
-
-            # Make sure the FFmpeg process is cleaned up.
-            source.cleanup()
-            self.current = None
-
-            try:
-                # We are no longer playing this song...
-                await self.np.delete()
-            except discord.HTTPException:
-                pass
-
+    async def check_if_removed(song_queue, song_list):
+        """Check if song title from queue and list are the same.
+         If they are similar, return True, else return False."""
     def destroy(self, guild):
         """Disconnect and cleanup the player."""
         return self.bot.loop.create_task(self._cog.cleanup(guild))
@@ -374,7 +412,7 @@ class Music(commands.Cog):
         # If download is True, source will be a discord.FFmpegPCMAudio with a VolumeTransformer.
         source = await SongSource.create_YTDL_source(self.bot, ctx, search, loop=self.bot.loop, download=False)
 
-        await player.queue.put(source)   
+        await player.queue_put(source)   
 
         # Tell user the song's position in queue.
         queue_size = player.queue.qsize()
@@ -413,7 +451,7 @@ class Music(commands.Cog):
         
         source = await SongSource.create_listen_moe_source(self.bot, ctx)
 
-        await player.queue.put(source)   
+        await player.queue_put(source)   
 
     @commands.hybrid_command(name='pause')
     async def pause_(self, ctx):
@@ -467,8 +505,21 @@ class Music(commands.Cog):
         position: int
             Position of song that will be removed.
         """
+        position -= 1
         player = self.get_player(ctx)
-        logging.info(player.queue._queue[position])
+        song_data = player.songs_data[position]
+        try:
+            del player.songs_data[position]
+        except IndexError:
+            logging.error(err, discord.Music)
+            await ctx.send(f':cross: Song title or position does not exist!')
+            return
+        except Exception as err:
+            logging.error(err, discord.Music)
+            await ctx.send(f':cross: An Error Occured!\n\n`{err}`')
+            return
+        
+        await ctx.send(f"Removed {song_data['title']} at position {position}!")
 
     @commands.hybrid_command(name='queue', aliases=['q', 'playlist'])
     async def queue_info(self, ctx):
@@ -483,7 +534,7 @@ class Music(commands.Cog):
             return await ctx.send('There are currently no more queued songs.')
 
         # Grab up to 5 entries from the queue...
-        upcoming = list(itertools.islice(player.queue._queue, 0, 5))
+        upcoming = list(itertools.islice(player.songs_data, 0, 5))
 
         fmt = '\n'.join(f'**{postiion+1}:** **`{_["title"]}`**' for postiion, _ in enumerate(upcoming))
         embed = discord.Embed(title=f'Upcoming - Next {len(upcoming)}', description=fmt)
