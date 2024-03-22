@@ -296,9 +296,6 @@ class MusicPlayer(commands.Cog):
 
         return source
 
-    async def check_if_removed(song_queue, song_list):
-        """Check if song title from queue and list are the same.
-         If they are similar, return True, else return False."""
     def destroy(self, guild):
         """Disconnect and cleanup the player."""
         return self.bot.loop.create_task(self._cog.cleanup(guild))
@@ -344,7 +341,7 @@ class Music(commands.Cog):
         print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
         traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
 
-    async def is_running(self, task):
+    async def _is_running(self, task):
         """Checks if a task is running."""
         if task in asyncio.all_tasks():
             return True
@@ -423,8 +420,14 @@ class Music(commands.Cog):
     # TODO: Make Command have parameter to choose type of radio, ex. ./radio jp -> weeb music
     # TODO: Add JP as a choice (look at discordpy slash commands documentation)
     @commands.hybrid_command(name="radio")
-    async def start_radio(self, ctx):
-        """Radio that plays Japanese Pop Music 24/7."""
+    async def start_radio(self, ctx, force: bool = False):
+        """Radio that plays Japanese Pop Music 24/7.
+        
+        Parameters
+        -----------
+        force: bool
+            Stop current song and play the Radio.
+        """
         # TODO: Add parameter that clears the queue and plays radio after
         # TODO: Add parameter that enables/disables np song data
         await ctx.typing()
@@ -438,14 +441,19 @@ class Music(commands.Cog):
         if not vc:
             await ctx.invoke(self.connect_)
 
+        if force:
+            await ctx.invoke(self.queue_clear)
+            vc.stop()
+
         if player.current != None:
             if player.current.platform == 'listen.moe' or player.radio_is_running:
                 await ctx.send(":cross_mark: Already playing/queued Radio!")
                 return
             else:
-                embed = discord.Embed(title="Queued Radio!", description="Will play after queue is empty!", color=color)
-                embed.set_footer(text="To play immediately, do /radio again with 'Force' enabled!")
-                await ctx.send(embed=embed)
+                if not force:
+                    embed = discord.Embed(title="Queued Radio!", description="Will play after queue is empty!", color=color)
+                    embed.set_footer(text="To play immediately, do /radio again with 'Force' enabled!")
+                    await ctx.send(embed=embed)
         
         player.radio_is_running = True
         
@@ -506,20 +514,29 @@ class Music(commands.Cog):
             Position of song that will be removed.
         """
         position -= 1
+        
         player = self.get_player(ctx)
-        song_data = player.songs_data[position]
+
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_connected():
+            return await ctx.send('I am not currently playing anything!')
+        
         try:
+            song_data = player.songs_data[position]
             del player.songs_data[position]
         except IndexError:
-            logging.error(err, discord.Music)
-            await ctx.send(f':cross: Song title or position does not exist!')
-            return
+            if player.songs_data:
+                logging.info('List index out of range!', 'discord.Music')
+                return await ctx.send(f':cross_mark: Song title or position does not exist!')
+            else:
+                logging.info('Queue is empty!', 'discord.Music')
+                return await ctx.send(f'The Queue is Empty... <:hutaodumbomoebay:1187257013869232189>')
         except Exception as err:
-            logging.error(err, discord.Music)
-            await ctx.send(f':cross: An Error Occured!\n\n`{err}`')
-            return
-        
-        await ctx.send(f"Removed {song_data['title']} at position {position}!")
+            logging.error(err, 'discord.Music')
+            return await ctx.send(f':cross_mark: An Error Occured!\n\n`{err}`')
+            
+        return await ctx.send(f"Removed {song_data['title']} at position {position}!")
 
     @commands.hybrid_command(name='queue', aliases=['q', 'playlist'])
     async def queue_info(self, ctx):
@@ -606,6 +623,27 @@ class Music(commands.Cog):
         embed.add_field(name="Current Volume", value=vol, inline=True)
         await ctx.send(embed=embed)
         # await ctx.send(f'**`{ctx.author}`**: Set the volume to **{vol}%**')
+
+    @commands.hybrid_command(name='clear', aliases=['empty', 'remove_all', 'delete_all'])
+    async def queue_clear(self, ctx):
+        """Removes every song from the queue."""
+        vc = ctx.voice_client
+
+        if not vc or not vc.is_connected():
+            return await ctx.send('I am not currently connected to voice!')
+
+        player = self.get_player(ctx)
+        if not player.songs_data:
+            return await ctx.send('There are currently no more queued songs.')
+        
+        # while not player.queue.empty():
+        #     player.queue.get_nowait()
+        #     player.queue.task_done()
+
+        player.songs_data.clear()
+
+        return await ctx.send('Cleared the queue!')
+
 
     @commands.hybrid_command(name='stop', aliases=['leave'])
     async def stop_(self, ctx):
