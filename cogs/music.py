@@ -180,8 +180,6 @@ class SongSource(discord.PCMVolumeTransformer):
         return song_data
 
 
-# TODO: Add way to clear queue
-# TODO: Fix bug where radio will still add a song to queue even if youtube song is added
 class MusicPlayer(commands.Cog):
     """A class which is assigned to each guild using the bot for Music.
     This class implements a queue and loop, which allows for different guilds to listen to different playlists
@@ -217,6 +215,7 @@ class MusicPlayer(commands.Cog):
         self.radio = False
         self.radio_is_running = False
         self.song_history = deque([], 25)  # History of songs played
+        self.queued_user_song = False
 
         self.np = None  # Now playing message
         self.np_embed = None  # Now playing embed
@@ -238,14 +237,18 @@ class MusicPlayer(commands.Cog):
             try:
                 # Wait for the next song. If we timeout cancel the player and disconnect...
                 async with timeout(300):  # 5 minutes...
-                    source = await self.queue_get()
+                    source = await self.queue_get()  # Get AudioSource + song + data
             except asyncio.TimeoutError:
                 return self.destroy(self._guild)
 
+            # Got song from Queue so this is now...
+            self.queued_user_song = False
+
             if source:  # If song was not removed...
                 if source["platform"] == "listen.moe":
-                    # Source is from listen.moe
-                    # Update AudioSource so it gets the latest song and not the saved one from the queue (prevents duplicates and starting at halfway point of song)
+                    # AudioSource is from listen.moe
+                    # Update AudioSource so it gets the link for the latest song and not the saved one from the queue
+                    # (prevents duplicate song links and starting at halfway point of a song)
                     try:
                         source = await SongSource.create_listen_moe_source(
                             self.bot, self.ctx
@@ -253,10 +256,11 @@ class MusicPlayer(commands.Cog):
                     except Exception as err:
                         logging.error(err, "listen.moe")
                 else:
+                    # AudioSource is not from listen.moe, so Radio is no longer running.
                     self.radio_is_running = False
 
                 if not isinstance(source, SongSource):
-                    # Source was probably a stream (not downloaded)
+                    # AudioSource was probably a stream (not downloaded)
                     # So we should regather to prevent stream expiration
                     try:
                         source = await SongSource.regather_stream(
@@ -274,9 +278,11 @@ class MusicPlayer(commands.Cog):
 
                 self._guild.voice_client.play(
                     source,
+                    # Once song is finished, resume the thread.
                     after=lambda _: self.bot.loop.call_soon_threadsafe(self.next.set),
                 )
 
+                # Create and send embed message with song data.
                 embed = music_ui.now_playing(
                     song_title=source["title"],
                     song_artist=source["artist"],
@@ -290,14 +296,17 @@ class MusicPlayer(commands.Cog):
 
                 self.np = await self._channel.send(embed=self.np_embed)
 
+                # Wait until self.next.set is called...
                 await self.next.wait()
 
                 self.song_history.append(source)
 
-                if source["platform"] == "listen.moe":
+                # If song was from listen.moe, add another listen.moe song to continue the radio loop.
+                # Will not do it if a user requested song is queued.
+                if source["platform"] == "listen.moe" and not self.queued_user_song:
                     new_source = await SongSource.create_listen_moe_source(
                         self.bot, self.ctx
-                    )  # (ctx, loop=self.bot.loop)
+                    )
                     await self.queue_put(new_source)
 
                 # Make sure the FFmpeg process is cleaned up.
@@ -464,6 +473,8 @@ class Music(commands.Cog):
 
         await player.queue_put(source)
 
+        player.queued_user_song = True
+
         # Tell user the song's position in queue.
         queue_size = player.queue.qsize()
         embed = music_ui.queue_song(
@@ -473,7 +484,7 @@ class Music(commands.Cog):
             duration_string=source["duration_string"],
             requester=source["requester"].display_name,
             thumbnail=source["thumbnail"],
-            platform="Youtube",
+            platform=source["platform"],
         )
 
         await ctx.send(embed=embed)
