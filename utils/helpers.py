@@ -6,19 +6,22 @@ import websockets
 from utils import logging
 import urllib.parse
 
+
 # Listen MOE
 async def send_ws(ws, data):
-	json_data = json.dumps(data)
-	try: 
-		await ws.send(json_data)
-	except websockets.exceptions.ConnectionClosedError as err:
-		logging.error(err, "websockets")
+    json_data = json.dumps(data)
+    try:
+        await ws.send(json_data)
+    except websockets.exceptions.ConnectionClosedError as err:
+        logging.error(err, "websockets")
+
 
 async def send_pings(ws, interval=45):
-	while True:
-		await asyncio.sleep(interval)
-		msg = { 'op': 9 }
-		await send_ws(ws, msg)
+    while True:
+        await asyncio.sleep(interval)
+        msg = {"op": 9}
+        await send_ws(ws, msg)
+
 
 # Format links for listen.moe
 def build_url(base_url, path, args_dict):
