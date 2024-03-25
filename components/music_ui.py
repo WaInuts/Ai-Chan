@@ -34,12 +34,12 @@ def get_platform_colors(platform):
 
 
 def queue_song(
+    requester: discord.Member,
     queue_size=0,
     song_title="Song Title",
     song_artist="",
     song_url="",
     duration_string="",
-    requester="You",
     thumbnail="",
     platform="Spotify",
 ):
@@ -56,7 +56,7 @@ def queue_song(
         color=color,
     )
     embed.set_author(
-        name=f"| @{requester} Added to Queue ~",
+        name=f"| @{requester.display_name} Added to Queue ~",
         icon_url="https://images.emojiterra.com/google/noto-emoji/unicode-15/color/512px/1f338.png",
     )
     embed.set_thumbnail(url=f"{thumbnail}")
@@ -68,12 +68,12 @@ def queue_song(
 
 
 def now_playing(
+    requester: discord.Member,
     song_title="Song Title",
     song_artist="",
     song_url="",
     duration_string="",
     platform="Spotify",
-    requester="",
     thumbnail="",
 ):
     """Creates embed with the currently playing song's data."""
@@ -89,12 +89,20 @@ def now_playing(
     embed = discord.Embed(
         title=f"{notes} {song_title} {notes}",
         description=(f"by {song_artist}  |  " if song_artist else "")
-        + f"`{duration_string}`  |  [{emoji} Song Link]({song_url})"
-        + (f"\n\nRequested by: @{requester}" if requester else ""),
+        + f"`{duration_string}`  |  [{emoji} Song Link]({song_url})",
         color=color,
     )
     embed.set_author(name=f"Now Playing")
     if thumbnail:
         embed.set_thumbnail(url=thumbnail)
-    embed.set_footer(text=f"{platform} (c) 2024", icon_url=platform_logo)
+    embed.set_footer(
+        text=(
+            f"{platform} (c) 2024"
+            if platform == "listen.moe"
+            else f"| Requested by: @{requester.display_name}"
+        ),
+        icon_url=(
+            platform_logo if platform == "listen.moe" else f"{requester.display_avatar}"
+        ),
+    )
     return embed

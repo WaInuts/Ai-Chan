@@ -83,10 +83,10 @@ class SongSource(discord.PCMVolumeTransformer):
     @classmethod
     async def get_user_audio_source(cls, bot, ctx, query: str, *, loop, download=False):
         "Gets AudioSource from Youtube or Spotify."
-        title = ""
-        artists = ""
-        webpage_url = ""
-        platform = "Spotify"
+        song_data = {
+            "platform": "Spotify",
+            "requester": ctx.author,
+        }
 
         if (
             "https://open.spotify.com/track" in query
@@ -94,45 +94,80 @@ class SongSource(discord.PCMVolumeTransformer):
         ):
             try:
                 result = spotify.track(query)
-                title = result["name"]
                 artists_data = result["artists"]
                 artists = [artist["name"] for artist in artists_data]
-                artists = ",".join(str(artist) for artist in artists)
-                webpage_url = result["external_urls"]["spotify"]
+
+                song_data["title"] = result["name"]
+                song_data["artist"] = ",".join(
+                    str(artist) for artist in artists
+                )  # TODO: refactor 'artist' to 'artists'
+                song_data["webpage_url"] = result["external_urls"]["spotify"]
+                song_data["thumbnail"] = result["album"]["images"][0][
+                    "url"
+                ]  # Get 640x640 image
+
+                title = song_data["title"]
+                artists = song_data["artist"]
+
                 logging.info(result)
                 logging.info(title)
                 logging.info(artists_data)
                 logging.info(artists)
+
                 query = f"{title} by {artists}"
                 await ctx.send(query)
+
             except Exception as err:
                 logging.error(err, "SongSource")
                 await ctx.send(
-                    f"There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}"
+                    f":cross_mark: There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}"
                 )
                 return None
+
         elif "https://youtu" in query or "youtube.com" in query:
-            platform = "Youtube"
+            song_data["platform"] = "Youtube"
+
+        elif "https://" in query:
+            song_data["platform"] = "Youtube"
+
         else:
             try:
                 results = spotify.search(query)
-                title = results["tracks"]["items"][0]["name"]
                 artists_data = results["tracks"]["items"][0]["artists"]
                 artists = [artist["name"] for artist in artists_data]
-                artists = ",".join(str(artist) for artist in artists)
-                webpage_url = results["tracks"]["items"][0]["external_urls"]["spotify"]
+
+                song_data["title"] = results["tracks"]["items"][0]["name"]
+                song_data["artist"] = ",".join(
+                    str(artist) for artist in artists
+                )  # TODO: refactor 'artist' to 'artists'
+                song_data["webpage_url"] = results["tracks"]["items"][0][
+                    "external_urls"
+                ]["spotify"]
+                song_data["thumbnail"] = results["tracks"]["items"][0]["album"][
+                    "images"
+                ][0][
+                    "url"
+                ]  # Get 640x640 image
+
+                title = song_data["title"]
+                artists = song_data["artist"]
+
                 logging.info(results)
                 logging.info(title)
                 logging.info(artists_data)
                 logging.info(artists)
+
                 query = f"{title} by {artists}"
                 await ctx.send(query)
+
             except Exception as err:
                 logging.error(err, "SongSource")
                 await ctx.send(
-                    f"There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}"
+                    f":cross_mark: There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}"
                 )
                 return None
+
+        # Get AudioSource from Youtube using Spotify query or
         loop = loop or asyncio.get_event_loop()
 
         to_run = partial(ytdl.extract_info, url=query, download=download)
@@ -145,16 +180,23 @@ class SongSource(discord.PCMVolumeTransformer):
         if download:
             source = ytdl.prepare_filename(data)
         else:
-            song_data = {
-                "artist": artists,  # TODO: refactor 'artist' to 'artists'
-                "webpage_url": webpage_url if webpage_url else data["webpage_url"],
-                "youtube_url": data["webpage_url"],
-                "requester": ctx.author,
-                "title": title if title else data["title"],
-                "thumbnail": data["thumbnail"],
-                "duration_string": data["duration_string"],
-                "platform": platform,
-            }
+            if song_data["platform"] == "Spotify":
+                song_data.update(
+                    {
+                        "youtube_url": data["webpage_url"],
+                        "duration_string": data["duration_string"],
+                    }
+                )
+            else:
+                song_data.update(
+                    {
+                        "webpage_url": data["webpage_url"],
+                        "youtube_url": data["webpage_url"],
+                        "title": data["title"],
+                        "thumbnail": data["thumbnail"],
+                        "duration_string": data["duration_string"],
+                    }
+                )
             # cls.data = song_data
             return song_data
 
@@ -202,23 +244,14 @@ class SongSource(discord.PCMVolumeTransformer):
         Since Youtube Streaming links expire."""
         loop = loop or asyncio.get_event_loop()
         requester = data["requester"]
-        platform = data["platform"]
-        # TODO: Refactor platform as class return variable instead of dict argument (similar to how "request" is done here by OG programmer)
-        title = data["title"]
-        artists = data["artist"]
-        webpage_url = data["webpage_url"]
 
         to_run = partial(ytdl.extract_info, url=data["youtube_url"], download=False)
-        data = await loop.run_in_executor(None, to_run)
-        data["platform"] = platform
-        data["title"] = title
-        data["artist"] = artists
-        data["webpage_url"] = webpage_url
+        regathered_data = await loop.run_in_executor(None, to_run)
 
         # cls.data = data
 
         return cls(
-            discord.FFmpegPCMAudio(data["url"], **ffmpegopts),
+            discord.FFmpegPCMAudio(regathered_data["url"], **ffmpegopts),
             data=data,
             requester=requester,
         )
@@ -575,11 +608,12 @@ class Music(commands.Cog):
             # Tell user the song's position in queue.
             queue_size = player.queue.qsize()
             embed = music_ui.queue_song(
+                requester=source["requester"],
                 song_title=source["title"],
+                song_artist=source["artist"],
                 song_url=source["webpage_url"],
                 queue_size=queue_size,
                 duration_string=source["duration_string"],
-                requester=source["requester"].display_name,
                 thumbnail=source["thumbnail"],
                 platform=source["platform"],
             )
