@@ -1,7 +1,7 @@
+from typing import Coroutine
 from discord.ext import commands
 import discord
-from utils import logging
-from utils import config
+from utils import config, logging, colors
 from colorama import Style
 
 
@@ -26,79 +26,111 @@ class System(commands.Cog):
     @commands.hybrid_command(
         name="help", aliases=["helpmemommy"], description="List of Commands"
     )
-    async def help(self, ctx):
-        title = "Here are my commands!"
-        icon_url = "https://imgur.com/WvLDLj0.png"
+    async def help(self, ctx, command: str = None):
+        """Need help? Here's a list of commands!
+
+        Parameters
+        -----------
+        command: str
+            Get more information about a specific command.
+        """
+        embed = discord.Embed(
+            color=int(colors.HUTAO_RED, 16)
+        )  # Convert color from hex to decimal
+        embed.set_author(
+            name="Ai-Chan (Hu Tao) v0.727", icon_url="https://imgur.com/aZFuOqZ.png"
+        )
+        command_names_list = [command.name for command in self.bot.commands]
 
         system = self.bot.get_cog("System")
         music = self.bot.get_cog("Music")
-        # TODO: recaterogize to AI cog
         ai = self.bot.get_cog("AI")
         fanart = self.bot.get_cog("FanArt")
 
-        helptext = ""
+        if not command:
+            embed.title = "Start your commands with 'h.' or '/'!"
 
-        ai_commands = f"\n**Start your commands with `h.`!\n\n{ai.description}**\n\n"
-        helptext += ai_commands
+            embed.add_field(
+                name="Hu Tao! <a:hutao_burger:1187215479400566844>",
+                value=f"`{ai.description}`",
+            )
 
-        fanart_commands = (
-            f"**Fanart <:hutaopoem:1187257015555334204>**\n{fanart.description}\n\n"
-        )
-        helptext += fanart_commands
+            embed.add_field(
+                name="System :robot:",
+                value=",".join(
+                    [f"`/{command.name}`" for command in system.get_commands()]
+                ),
+            )
 
-        system_commands = f"**System :robot:\n**`"
-        for command in system.get_commands():
-            system_commands += f"{command},"
-        system_commands += "`\n\n"
-        helptext += system_commands
+            embed.add_field(
+                name="Fanart <:hutaopoem:1187257015555334204>",
+                value=fanart.description,
+                inline=False,
+            )
 
-        music_commands = f"**Music :musical_note:\n**`"
-        for command in music.get_commands():
-            music_commands += f"{command},"
-        music_commands += "`\n\n"
-        helptext += music_commands
+            embed.add_field(
+                name="Music <a:hutao_music:1187216417121124413> :musical_note:",
+                value=",".join(
+                    [f"`/{command.name}`" for command in music.get_commands()]
+                ),
+                inline=False,
+            )
 
-        footer = "Type h.help [command] for more info on a command!"
+            embed.set_footer(
+                text="Type h.help [command] or /help [command] for more info on a command!"
+            )
 
-        embed = discord.Embed(description=helptext)
-        embed.set_author(name=title, icon_url=icon_url)
-        embed.set_footer(text=footer)
+        # If command exists, show more information about the command.
+        elif command in command_names_list:
+            command = self.bot.get_command(command)
+            embed.add_field(
+                name=(
+                    f"`/{command.name} {command.signature}`"
+                    + (
+                        "Aliases: " + ", ".join(command.aliases)
+                        if command.aliases
+                        else ""
+                    )
+                ),
+                value=f"{command.help}",
+            )
+            embed.set_footer(text="Type h.help or /help for a list of every command!")
+        # Command does not exist!
+        else:
+            embed.add_field(
+                name="This command does not exist!", value="You silly baka!"
+            )
+            embed.set_footer(text="Type h.help or /help for a list of every command!")
 
-        helptext = "```"
-        for command in self.bot.commands:
-            helptext += f"{command}\n"
-        helptext += "```"
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command(
-        name="hello",
-        aliases=["hi", "yo", "hey", "konichiwa"],
-        description="Say Hi to Hu Tao!",
-    )
+    @commands.hybrid_command(name="hello", aliases=["hi", "yo", "hey", "konichiwa"])
     async def hello(self, ctx):
+        """Say Hi to Hu Tao!"""
         embed = discord.Embed(title=f"**Hello {ctx.message.author.display_name}!**")
         embed.set_image(url="https://imgur.com/SPbKVFT.png")
         return await ctx.reply(embed=embed)
 
-    @commands.hybrid_command(
-        name="goodmorning", aliases=["ohayo"], description="Wish Hu Tao a Good Morning!"
-    )
+    @commands.hybrid_command(name="goodmorning", aliases=["ohayo"])
     async def goodmorning(self, ctx):
+        """Wish Hu Tao a Good Morning!"""
         embed = discord.Embed(
             title=f"**Good Morning {ctx.message.author.display_name}.**"
         )
         embed.set_image(url="https://imgur.com/cLvPkDV.png")
         return await ctx.reply(embed=embed)
 
-    @commands.hybrid_command(
-        name="goodnight", aliases=["oyasumi"], description="Wish Hu Tao a Good Night!"
-    )
+    @commands.hybrid_command(name="goodnight", aliases=["oyasumi"])
     async def goodnight(self, ctx):
+        """Wish Hu Tao a Good Night!"""
         embed = discord.Embed(
             title=f"**Good Night {ctx.message.author.display_name}! <3**"
         )
         embed.set_image(url="https://imgur.com/3IJvykn.png")
         return await ctx.reply(embed=embed)
+
+    def cog_unload(self):
+        self.bot.help_command = self._original_help_command
 
 
 async def setup(bot):

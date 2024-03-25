@@ -1,5 +1,5 @@
 import discord
-from utils import logging
+from utils import logging, colors
 
 
 def get_platform_colors(platform):
@@ -10,14 +10,16 @@ def get_platform_colors(platform):
                 "https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Spotify_logo_without_text.svg/2048px-Spotify_logo_without_text.svg.png"
             )
             color_data["notes"] = "<:notes_green:1217928189070807202>"
-            color_data["color"] = 2480229  # #25d865 green
+            color_data["color"] = int(
+                colors.SPOTIFY_GREEN, 16
+            )  # #25d865 green | Have to convert hex to decimal form for Discord.py embed
             color_data["emoji"] = "<:spotify:1220523061778845746>"
         case "Youtube":
             color_data["platform_logo"] = (
                 "https://1000logos.net/wp-content/uploads/2017/05/Red-YouTube-logo.png"
             )
             color_data["notes"] = "<:notes_solid_red:1217928191507697805>"
-            color_data["color"] = 15555676  # #ed5c5c red
+            color_data["color"] = int(colors.YOUTUBE_RED, 16)  # #ed5c5c red
             color_data["emoji"] = "<:YouTube:1220522718680846376>"
         case _:
             # color_data['platform_logo'] = "https://listen.moe/_nuxt/img/logo-square-64.248c1f3.png"
@@ -25,7 +27,7 @@ def get_platform_colors(platform):
                 "https://upload.wikimedia.org/wikipedia/en/thumb/9/9e/Flag_of_Japan.svg/1280px-Flag_of_Japan.svg.png"
             )
             color_data["notes"] = ":notes:"
-            color_data["color"] = 6139372  # #5dadec blue
+            color_data["color"] = int(colors.RADIO_BLUE, 16)  # #5dadec blue
             color_data["emoji"] = "<:google:1220523203978596413>"
 
     return color_data

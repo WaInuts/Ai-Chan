@@ -12,6 +12,8 @@ import time
 from async_timeout import timeout
 from functools import partial
 import yt_dlp as youtube_dl
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
 from collections import deque
 from utils.helpers import send_pings, build_url
 from utils import logging
@@ -42,6 +44,7 @@ ffmpegopts = {
 }
 
 ytdl = youtube_dl.YoutubeDL(ytdlopts)
+spotify = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials())
 
 
 class VoiceConnectionError(commands.CommandError):
@@ -78,10 +81,95 @@ class SongSource(discord.PCMVolumeTransformer):
         return self.__getattribute__(item)
 
     @classmethod
-    async def create_YTDL_source(cls, bot, ctx, search: str, *, loop, download=False):
+    async def get_user_audio_source(cls, bot, ctx, query: str, *, loop, download=False):
+        "Gets AudioSource from Youtube or Spotify."
+        title = ""
+        artists = ""
+        webpage_url = ""
+        platform = "Spotify"
+
+        if (
+            "https://open.spotify.com/track" in query
+            or "open.spotify.com/track" in query
+        ):
+            try:
+                result = spotify.track(query)
+                title = result["name"]
+                artists_data = result["artists"]
+                artists = [artist["name"] for artist in artists_data]
+                artists = ",".join(str(artist) for artist in artists)
+                webpage_url = result["external_urls"]["spotify"]
+                logging.info(result)
+                logging.info(title)
+                logging.info(artists_data)
+                logging.info(artists)
+                query = f"{title} by {artists}"
+                await ctx.send(query)
+            except Exception as err:
+                logging.error(err, "SongSource")
+                await ctx.send(
+                    f"There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}"
+                )
+                return None
+        elif "https://youtu" in query or "youtube.com" in query:
+            platform = "Youtube"
+        else:
+            try:
+                results = spotify.search(query)
+                title = results["tracks"]["items"][0]["name"]
+                artists_data = results["tracks"]["items"][0]["artists"]
+                artists = [artist["name"] for artist in artists_data]
+                artists = ",".join(str(artist) for artist in artists)
+                webpage_url = results["tracks"]["items"][0]["external_urls"]["spotify"]
+                logging.info(results)
+                logging.info(title)
+                logging.info(artists_data)
+                logging.info(artists)
+                query = f"{title} by {artists}"
+                await ctx.send(query)
+            except Exception as err:
+                logging.error(err, "SongSource")
+                await ctx.send(
+                    f"There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}"
+                )
+                return None
         loop = loop or asyncio.get_event_loop()
 
-        to_run = partial(ytdl.extract_info, url=search, download=download)
+        to_run = partial(ytdl.extract_info, url=query, download=download)
+        data = await loop.run_in_executor(None, to_run)
+
+        if "entries" in data:
+            # take first item from a playlist
+            data = data["entries"][0]
+
+        if download:
+            source = ytdl.prepare_filename(data)
+        else:
+            song_data = {
+                "artist": artists,  # TODO: refactor 'artist' to 'artists'
+                "webpage_url": webpage_url if webpage_url else data["webpage_url"],
+                "youtube_url": data["webpage_url"],
+                "requester": ctx.author,
+                "title": title if title else data["title"],
+                "thumbnail": data["thumbnail"],
+                "duration_string": data["duration_string"],
+                "platform": platform,
+            }
+            # cls.data = song_data
+            return song_data
+
+        return cls(
+            discord.FFmpegPCMAudio(source, **ffmpegopts),
+            data=data,
+            requester=ctx.author,
+        )
+
+    @classmethod
+    async def create_YTDL_source(cls, bot, ctx, query: str, *, loop, download=False):
+        "Creates an AudioSource from Youtube."
+        loop = loop or asyncio.get_event_loop()
+
+        to_run = partial(ytdl.extract_info, url=query, download=download)
         data = await loop.run_in_executor(None, to_run)
 
         if "entries" in data:
@@ -99,7 +187,7 @@ class SongSource(discord.PCMVolumeTransformer):
                 "duration_string": data["duration_string"],
                 "platform": "Youtube",
             }
-            cls.data = song_data
+            # cls.data = song_data
             return song_data
 
         return cls(
@@ -114,12 +202,20 @@ class SongSource(discord.PCMVolumeTransformer):
         Since Youtube Streaming links expire."""
         loop = loop or asyncio.get_event_loop()
         requester = data["requester"]
+        platform = data["platform"]
+        # TODO: Refactor platform as class return variable instead of dict argument (similar to how "request" is done here by OG programmer)
+        title = data["title"]
+        artists = data["artist"]
+        webpage_url = data["webpage_url"]
 
-        to_run = partial(ytdl.extract_info, url=data["webpage_url"], download=False)
+        to_run = partial(ytdl.extract_info, url=data["youtube_url"], download=False)
         data = await loop.run_in_executor(None, to_run)
-        data["platform"] = "Youtube"
+        data["platform"] = platform
+        data["title"] = title
+        data["artist"] = artists
+        data["webpage_url"] = webpage_url
 
-        cls.data = data
+        # cls.data = data
 
         return cls(
             discord.FFmpegPCMAudio(data["url"], **ffmpegopts),
@@ -172,7 +268,7 @@ class SongSource(discord.PCMVolumeTransformer):
             song_data["artist"] = ""
 
         logging.info(f"Radio Now Playing: {songHeader}", "listen.moe")
-        webpage_url = build_url("https://www.google.com", "search", {"q": songHeader})
+        webpage_url = build_url("https://www.google.com", "query", {"q": songHeader})
         song_data["webpage_url"] = webpage_url
 
         # return data
@@ -467,27 +563,28 @@ class Music(commands.Cog):
 
         # If download is False, source will be a dict which will be used later to regather the stream.
         # If download is True, source will be a discord.FFmpegPCMAudio with a VolumeTransformer.
-        source = await SongSource.create_YTDL_source(
+        source = await SongSource.get_user_audio_source(
             self.bot, ctx, search, loop=self.bot.loop, download=False
         )
 
-        await player.queue_put(source)
+        if source:
+            await player.queue_put(source)
 
-        player.queued_user_song = True
+            player.queued_user_song = True
 
-        # Tell user the song's position in queue.
-        queue_size = player.queue.qsize()
-        embed = music_ui.queue_song(
-            song_title=source["title"],
-            song_url=source["webpage_url"],
-            queue_size=queue_size,
-            duration_string=source["duration_string"],
-            requester=source["requester"].display_name,
-            thumbnail=source["thumbnail"],
-            platform=source["platform"],
-        )
+            # Tell user the song's position in queue.
+            queue_size = player.queue.qsize()
+            embed = music_ui.queue_song(
+                song_title=source["title"],
+                song_url=source["webpage_url"],
+                queue_size=queue_size,
+                duration_string=source["duration_string"],
+                requester=source["requester"].display_name,
+                thumbnail=source["thumbnail"],
+                platform=source["platform"],
+            )
 
-        await ctx.send(embed=embed)
+            await ctx.send(embed=embed)
 
     # TODO: Make Command have parameter to choose type of radio, ex. ./radio jp -> weeb music
     # TODO: Add JP as a choice (look at discordpy slash commands documentation)

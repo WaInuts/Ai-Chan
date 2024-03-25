@@ -13,7 +13,7 @@ class AI(commands.Cog):
         self.bot = bot
         self.cai = cai
 
-    description = "To talk to Hu Tao, @Hu Tao with your message!"
+    description = "To talk to Hu Tao, **@Hu Tao** with your message!"
 
     @commands.Cog.listener()
     # Listener that allows bot to reply to user if they mention Hu Tao in their message.
