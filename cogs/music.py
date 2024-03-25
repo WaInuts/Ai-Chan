@@ -17,7 +17,7 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from collections import deque
 from utils.helpers import send_pings, build_url
 from utils import logging
-from components import music_ui
+from components import system_ui, music_ui
 
 from utils.config import LISTEN_MOE
 
@@ -474,7 +474,7 @@ class Music(commands.Cog):
             raise commands.NoPrivateMessage
         return True
 
-    async def __error(self, ctx, error):
+    async def cog_command_error(self, ctx, error):
         """A local error handler for all errors arising from commands in this cog."""
         if isinstance(error, commands.NoPrivateMessage):
             try:
@@ -484,10 +484,10 @@ class Music(commands.Cog):
             except discord.HTTPException:
                 pass
         elif isinstance(error, InvalidVoiceChannel):
-            await ctx.send(
-                "Error connecting to Voice Channel. "
-                "Please make sure you are in a valid channel or provide me with one"
+            embed = system_ui.error(
+                "Error connecting to Voice Channel!\n\nPlease make sure you are in a valid channel or provide me with one baka!"
             )
+            await ctx.send(embed=embed)
 
         # TODO: Change this to logging
         print("Ignoring exception in command {}:".format(ctx.command), file=sys.stderr)

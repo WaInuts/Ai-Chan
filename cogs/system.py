@@ -98,7 +98,9 @@ class System(commands.Cog):
         # Command does not exist!
         else:
             embed.add_field(
-                name="This command does not exist!", value="You silly baka!"
+                name="This command does not exist!",
+                value="You silly baka!"
+                + (" -Rod" if ctx.guild.id == config.GUILDS_ID.id else ""),
             )
             embed.set_footer(text="Type h.help or /help for a list of every command!")
 
