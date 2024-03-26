@@ -192,6 +192,7 @@ class SongSource(discord.PCMVolumeTransformer):
                         "webpage_url": data["webpage_url"],
                         "youtube_url": data["webpage_url"],
                         "title": data["title"],
+                        "artist": data["artist"],
                         "thumbnail": data["thumbnail"],
                         "duration_string": data["duration_string"],
                     }
