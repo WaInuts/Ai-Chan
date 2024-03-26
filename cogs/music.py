@@ -187,12 +187,16 @@ class SongSource(discord.PCMVolumeTransformer):
                     }
                 )
             else:
+                try:
+                    artist = data["artist"]
+                except Exception:
+                    artist = ""
                 song_data.update(
                     {
                         "webpage_url": data["webpage_url"],
                         "youtube_url": data["webpage_url"],
                         "title": data["title"],
-                        "artist": data["artist"],
+                        "artist": artist,
                         "thumbnail": data["thumbnail"],
                         "duration_string": data["duration_string"],
                     }
