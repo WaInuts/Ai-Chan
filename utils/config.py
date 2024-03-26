@@ -24,6 +24,7 @@ try:
     else:
         DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
         CHARACTER_AI_TOKEN = os.getenv("CHARACTER_AI_TOKEN")
+        GUILDS_ID = discord.Object(id=int(os.getenv("GUILD")))
 except:
     DISCORD_TOKEN = input("Enter Discord bot OAuth2: ")
     CHARACTER_AI_TOKEN = input("Enter Character.ai user OAuth: ")
