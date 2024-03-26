@@ -16,12 +16,14 @@ import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from collections import deque
 from utils.helpers import send_pings, build_url
-from utils import logging
+from utils import config, colors, logging
 from components import system_ui, music_ui
 
 from utils.config import LISTEN_MOE
 
 # TODO: Fix bug where second song in queue stops playing midway/randomly? (need to do further testing) (only happens on the server)
+# TODO: fix server bug involving source.cleanup
+# TODO: temp fix by stopping bot when error occurs
 ytdlopts = {
     "format": "bestaudio/best",
     "outtmpl": "downloads/%(extractor)s-%(id)s-%(title)s.%(ext)s",
@@ -80,11 +82,17 @@ class SongSource(discord.PCMVolumeTransformer):
         return self.__getattribute__(item)
 
     @classmethod
-    async def get_user_audio_source(cls, bot, ctx, query: str, *, loop, download=False):
+    async def get_audio_source(cls, bot, ctx, query: str, *, loop, download=False):
         "Gets AudioSource from Youtube or Spotify."
         song_data = {
             "platform": "Spotify",
             "requester": ctx.author,
+            "query": query,
+            "webpage_url": "",
+            "title": "",
+            "artist": "",
+            "thumbnail": "",
+            "duration_string": "",
         }
 
         if (
@@ -93,13 +101,15 @@ class SongSource(discord.PCMVolumeTransformer):
         ):
             try:
                 result = spotify.track(query)
-                artists_data = result["artists"]
-                artists = [artist["name"] for artist in artists_data]
+                # artists_data = result["artists"]
 
                 song_data["title"] = result["name"]
-                song_data["artist"] = ",".join(
-                    str(artist) for artist in artists
-                )  # TODO: refactor 'artist' to 'artists'
+                song_data["artist"] = ", ".join(
+                    [str(artist["name"]) for artist in result["artists"]]
+                )
+                # song_data["artist"] = ",".join(
+                #     str(artist) for artist in artists
+                # )  # TODO: refactor 'artist' to 'artists'
                 song_data["webpage_url"] = result["external_urls"]["spotify"]
                 song_data["thumbnail"] = result["album"]["images"][0][
                     "url"
@@ -110,35 +120,43 @@ class SongSource(discord.PCMVolumeTransformer):
 
                 logging.info(result)
                 logging.info(title)
-                logging.info(artists_data)
+                # logging.info(artists_data)
                 logging.info(artists)
 
-                query = f"{title} by {artists}"
-                await ctx.send(query)
+                song_data["query"] = f"{title} by {artists}"
+                await ctx.send(song_data["query"])
 
             except Exception as err:
                 logging.error(err, "SongSource")
                 await ctx.send(
-                    f":cross_mark: There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}"
+                    f":cross_mark: There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}`"
                 )
                 return None
 
         elif "https://youtu" in query or "youtube.com" in query:
             song_data["platform"] = "Youtube"
+            song_data["title"] = "Youtube Song"
 
         elif "https://" in query:
             song_data["platform"] = "Youtube"
+            song_data["title"] = "Youtube Song"
 
         else:
             try:
                 results = spotify.search(query)
-                artists_data = results["tracks"]["items"][0]["artists"]
-                artists = [artist["name"] for artist in artists_data]
+                # TODO: If refactored artists code works, use that instead
+                # artists_data = results["tracks"]["items"][0]["artists"]
 
                 song_data["title"] = results["tracks"]["items"][0]["name"]
-                song_data["artist"] = ",".join(
-                    str(artist) for artist in artists
-                )  # TODO: refactor 'artist' to 'artists'
+                song_data["artist"] = ", ".join(
+                    [
+                        str(artist["name"])
+                        for artist in results["tracks"]["items"][0]["artists"]
+                    ]
+                )
+                # song_data["artist"] = ",".join(
+                #     str(artist) for artist in artists
+                # )  # TODO: refactor 'artist' to 'artists'
                 song_data["webpage_url"] = results["tracks"]["items"][0][
                     "external_urls"
                 ]["spotify"]
@@ -153,66 +171,50 @@ class SongSource(discord.PCMVolumeTransformer):
 
                 logging.info(results)
                 logging.info(title)
-                logging.info(artists_data)
+                # logging.info(artists_data)
                 logging.info(artists)
 
-                query = f"{title} by {artists}"
-                await ctx.send(query)
+                song_data["query"] = f"{title} by {artists}"
+                await ctx.send(song_data["query"])
 
             except Exception as err:
                 logging.error(err, "SongSource")
                 await ctx.send(
-                    f":cross_mark: There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}"
+                    f":cross_mark: There was an error getting the song! <:HuTao_DED:1187215483729092619>\n\n`{err}`"
                 )
                 return None
 
         # Get AudioSource from Youtube using Spotify query or
-        loop = loop or asyncio.get_event_loop()
+        # loop = loop or asyncio.get_event_loop()
 
-        to_run = partial(ytdl.extract_info, url=query, download=download)
-        data = await loop.run_in_executor(None, to_run)
+        # to_run = partial(ytdl.extract_info, url=query, download=download)
+        # data = await loop.run_in_executor(None, to_run)
 
-        if "entries" in data:
-            # take first item from a playlist
-            data = data["entries"][0]
+        # if "entries" in data:
+        #     # take first item from a playlist
+        #     data = data["entries"][0]
 
         if download:
-            source = ytdl.prepare_filename(data)
+            # source = ytdl.prepare_filename(data)
+            pass
         else:
             if song_data["platform"] == "Spotify":
-                song_data.update(
-                    {
-                        "youtube_url": data["webpage_url"],
-                        "duration_string": data["duration_string"],
-                    }
-                )
+                pass
             else:
-                try:
-                    artist = data["artist"]
-                except Exception:
-                    artist = ""
-                song_data.update(
-                    {
-                        "webpage_url": data["webpage_url"],
-                        "youtube_url": data["webpage_url"],
-                        "title": data["title"],
-                        "artist": artist,
-                        "thumbnail": data["thumbnail"],
-                        "duration_string": data["duration_string"],
-                    }
-                )
-            # cls.data = song_data
+                pass
+            cls.data = song_data
             return song_data
 
-        return cls(
-            discord.FFmpegPCMAudio(source, **ffmpegopts),
-            data=data,
-            requester=ctx.author,
-        )
+        return song_data
+        # return cls(
+        #     discord.FFmpegPCMAudio(source, **ffmpegopts),
+        #     data=data,
+        #     requester=ctx.author,
+        # )
 
     @classmethod
     async def create_YTDL_source(cls, bot, ctx, query: str, *, loop, download=False):
-        "Creates an AudioSource from Youtube."
+        "Creates an AudioSource from Youtube or Spotify Data."
         loop = loop or asyncio.get_event_loop()
 
         to_run = partial(ytdl.extract_info, url=query, download=download)
@@ -249,10 +251,34 @@ class SongSource(discord.PCMVolumeTransformer):
         loop = loop or asyncio.get_event_loop()
         requester = data["requester"]
 
-        to_run = partial(ytdl.extract_info, url=data["youtube_url"], download=False)
+        to_run = partial(ytdl.extract_info, url=data["query"], download=False)
         regathered_data = await loop.run_in_executor(None, to_run)
+        logging.info(f"Data:\n{regathered_data}")
 
-        # cls.data = data
+        if "entries" in regathered_data:
+            # take first item from a playlist
+            regathered_data = regathered_data["entries"][0]
+
+        if data["platform"] == "Spotify":
+            data.update(
+                {
+                    "duration_string": regathered_data["duration_string"],
+                }
+            )
+        else:
+            try:
+                artist = regathered_data["artist"]
+            except Exception:
+                artist = ""
+            data.update(
+                {
+                    "webpage_url": regathered_data["webpage_url"],
+                    "title": regathered_data["title"],
+                    "artist": artist,
+                    "thumbnail": regathered_data["thumbnail"],
+                    "duration_string": regathered_data["duration_string"],
+                }
+            )
 
         return cls(
             discord.FFmpegPCMAudio(regathered_data["url"], **ffmpegopts),
@@ -305,7 +331,7 @@ class SongSource(discord.PCMVolumeTransformer):
             song_data["artist"] = ""
 
         logging.info(f"Radio Now Playing: {songHeader}", "listen.moe")
-        webpage_url = build_url("https://www.google.com", "query", {"q": songHeader})
+        webpage_url = build_url("https://www.google.com", "search", {"q": songHeader})
         song_data["webpage_url"] = webpage_url
 
         # return data
@@ -522,7 +548,8 @@ class Music(commands.Cog):
                 pass
         elif isinstance(error, InvalidVoiceChannel):
             embed = system_ui.error(
-                "Error connecting to Voice Channel!\n\nPlease make sure you are in a valid channel or provide me with one baka!"
+                "Error connecting to Voice Channel!\n\nPlease make sure you are in a valid channel or provide me with one! "
+                + (" baka! -Rod" if ctx.guild.id == config.GUILDS_ID.id else ""),
             )
             await ctx.send(embed=embed)
 
@@ -574,7 +601,10 @@ class Music(commands.Cog):
                 raise VoiceConnectionError(
                     f"Connecting to channel: <{channel}> timed out."
                 )
-        embed = discord.Embed(title="Joined A Call")
+        embed = discord.Embed(
+            title="Joined A Call",
+            color=int(colors.HUTAO_RED, 16),
+        )
         embed.add_field(name="Connected To :", value=channel, inline=True)
 
         await ctx.send(embed=embed)
@@ -600,7 +630,8 @@ class Music(commands.Cog):
 
         # If download is False, source will be a dict which will be used later to regather the stream.
         # If download is True, source will be a discord.FFmpegPCMAudio with a VolumeTransformer.
-        source = await SongSource.get_user_audio_source(
+        # TODO: Move this to player_loop and instead only put search term in Queue to prevent music from stuttering when adding a song
+        source = await SongSource.get_audio_source(
             self.bot, ctx, search, loop=self.bot.loop, download=False
         )
 
@@ -642,8 +673,7 @@ class Music(commands.Cog):
         player = self.get_player(ctx)
 
         vc = ctx.voice_client
-        color_data = music_ui.get_platform_colors("listen.moe")
-        color = color_data["color"]
+        color = int(colors.RADIO_BLUE, 16)
 
         if not vc:
             await ctx.invoke(self.connect_)
@@ -754,8 +784,11 @@ class Music(commands.Cog):
         except Exception as err:
             logging.error(err, "discord.Music")
             return await ctx.send(f":cross_mark: An Error Occured!\n\n`{err}`")
-
-        return await ctx.send(f"Removed {song_data['title']} at position {position}!")
+        embed = discord.Embed(
+            title=f"Removed `{song_data['title']}` at position `{position}`!",
+            color=int(colors.HUTAO_RED, 16),
+        )
+        return await ctx.send(embed=embed)
 
     @commands.hybrid_command(name="queue", aliases=["q", "playlist"])
     async def queue_info(self, ctx):
@@ -774,9 +807,14 @@ class Music(commands.Cog):
 
         fmt = "\n".join(
             f'**{postiion+1}:** **`{_["title"]}`**'
+            + (f' by {_["artist"]}' if _["artist"] else "")
             for postiion, _ in enumerate(upcoming)
         )
-        embed = discord.Embed(title=f"Upcoming - Next {len(upcoming)}", description=fmt)
+        embed = discord.Embed(
+            title=f"Upcoming - Next {len(upcoming)}",
+            description=fmt,
+            color=int(colors.HUTAO_RED, 16),
+        )
 
         await ctx.send(embed=embed)
 
@@ -805,6 +843,7 @@ class Music(commands.Cog):
                 else f":notes: Last Played Song:"
             ),
             description=fmt,
+            color=int(colors.HUTAO_RED, 16),
         )
         embed.set_author(name=f"Song History")
         await ctx.send(embed=embed)
@@ -860,6 +899,7 @@ class Music(commands.Cog):
         embed = discord.Embed(
             title="Volume Message",
             description=f"The Volume Was Changed By **{ctx.author.display_name}**",
+            color=int(colors.HUTAO_RED, 16),
         )
         embed.add_field(name="Current Volume", value=vol, inline=True)
         await ctx.send(embed=embed)
@@ -898,9 +938,11 @@ class Music(commands.Cog):
         if not vc or not vc.is_connected():
             return await ctx.send("I am not currently playing anything!")
 
-        embed = discord.Embed(description="**Disconnected From Voice Channel!**")
+        embed = discord.Embed(
+            description="**Disconnected From Voice Channel!**",
+            color=int(colors.HUTAO_RED, 16),
+        )
         await ctx.send(embed=embed)
-        await vc.disconnect()
         await self.cleanup(ctx.guild)
 
 

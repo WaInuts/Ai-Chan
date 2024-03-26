@@ -49,21 +49,25 @@ def queue_song(
     color = color_data["color"]
     emoji = color_data["emoji"]
 
-    embed = discord.Embed(
-        title=f"{song_title}",
-        description=(f"by {song_artist}  |  " if song_artist else "")
-        + f"`{duration_string}`  |   [{emoji} Song Link]({song_url})",
-        color=color,
-    )
-    embed.set_author(
-        name=f"| @{requester.display_name} Added to Queue ~",
-        icon_url="https://images.emojiterra.com/google/noto-emoji/unicode-15/color/512px/1f338.png",
-    )
-    embed.set_thumbnail(url=f"{thumbnail}")
-    embed.set_footer(
-        text="Will play soon!" if queue_size <= 1 else f"Position #{queue_size}",
-        icon_url="https://imgur.com/PKi66Gs.png",
-    )
+    if platform == "Youtube":
+        embed = discord.Embed(title="Added Youtube song to queue!", color=color)
+    else:
+        embed = discord.Embed(
+            title=f"{song_title}",
+            description=(f"by {song_artist} | " if song_artist else "")
+            + (f"`{duration_string}` | " if duration_string else "")
+            + f"[{emoji} Song Link]({song_url})",
+            color=color,
+        )
+        embed.set_author(
+            name=f"| @{requester.display_name} Added to Queue ~",
+            icon_url="https://images.emojiterra.com/google/noto-emoji/unicode-15/color/512px/1f338.png",
+        )
+        embed.set_thumbnail(url=f"{thumbnail}")
+        embed.set_footer(
+            text="Will play soon!" if queue_size <= 1 else f"Position #{queue_size}",
+            icon_url="https://imgur.com/PKi66Gs.png",
+        )
     return embed
 
 
@@ -89,7 +93,12 @@ def now_playing(
     embed = discord.Embed(
         title=f"{notes} {song_title} {notes}",
         description=(f"by {song_artist}  |  " if song_artist else "")
-        + f"`{duration_string}`  |  [{emoji} Song Link]({song_url})",
+        + (
+            f"`{duration_string}` | "
+            if duration_string and duration_string != "00:00"
+            else ""
+        )
+        + f"[{emoji} Song Link]({song_url})",
         color=color,
     )
     embed.set_author(name=f"Now Playing")
