@@ -269,7 +269,7 @@ class SongSource(discord.PCMVolumeTransformer):
             try:
                 artist = regathered_data["artist"]
             except Exception:
-                artist = f"by {regathered_data["uploader"]}"
+                artist = f"by {regathered_data['uploader']}"
             data.update(
                 {
                     "webpage_url": regathered_data["webpage_url"],
