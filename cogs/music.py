@@ -22,7 +22,6 @@ from components import system_ui, music_ui
 from utils.config import LISTEN_MOE
 
 # TODO: Fix bug where second song in queue stops playing midway/randomly? (need to do further testing) (only happens on the server)
-# TODO: Add Spotify Support
 ytdlopts = {
     "format": "bestaudio/best",
     "outtmpl": "downloads/%(extractor)s-%(id)s-%(title)s.%(ext)s",
