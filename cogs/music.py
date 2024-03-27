@@ -469,7 +469,11 @@ class MusicPlayer(commands.Cog):
                     await self.queue_put(new_source)
 
                 # Make sure the FFmpeg process is cleaned up.
-                source.cleanup()
+                try:
+                    source.cleanup()
+                except Exception as err:
+                    logging.error(err, "discord.MusicPlayer")
+                    pass
                 self.current = None
 
                 try:
