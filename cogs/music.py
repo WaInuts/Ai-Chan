@@ -22,7 +22,8 @@ from components import system_ui, music_ui
 from utils.config import LISTEN_MOE
 
 # TODO: Fix bug where second song in queue stops playing midway/randomly? (need to do further testing) (only happens on the server)
-# TODO: fix server bug involving source.cleanup
+# TODO: fix server bug involving source.cleanup when doing /skip:
+# TEMP FIX: catch exception and continue
 # TODO: temp fix by stopping bot when error occurs
 ytdlopts = {
     "format": "bestaudio/best",

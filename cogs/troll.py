@@ -5,6 +5,11 @@ class Troll(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @commands.hybrid_command(name="monke", aliases=["monkey, ooo-ooo-aaa-aaa, gio"])
+    async def monke(self, ctx):
+        """Get a picture of a monkey"""
+        return await ctx.send("https://www.placemonkeys.com/500?random")
+
     @commands.command(aliases=["league"])
     async def gio(self, ctx):
         return await ctx.send(
